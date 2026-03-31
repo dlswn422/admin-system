@@ -9,29 +9,31 @@ export async function POST(request: Request) {
   try {
     const { name, password } = await request.json();
 
-    // 1. 유저 정보 조회
-    // 💡 roles(name) 대신 단순 조회를 먼저 시도하거나, 정확한 관계명을 명시해야 합니다.
+    // 1. 유저 정보 및 역할(Role) 정보 Join 조회
+    // 💡 role_id를 가져오는 것은 물론, roles 테이블과 조인하여 역할 이름도 함께 가져옵니다.
     const { data: user, error } = await supabase
       .from("users")
       .select(`
         id, 
         name, 
         password_hash,
-        role_id
+        role_id,
+        roles (
+          name
+        )
       `)
-      .eq("name", name.trim()) // 공백 제거 추가
-      .maybeSingle(); // 데이터가 없어도 에러 대신 null 반환
+      .eq("name", name.trim())
+      .maybeSingle();
 
-    // 데이터가 아예 없는 경우
+    // 사용자가 존재하지 않거나 DB 에러 발생 시
     if (error || !user) {
-      console.error("Supabase Error or No User:", error);
       return NextResponse.json(
-        { error: "등록되지 않은 이름입니다." },
+        { error: "등록되지 않은 관리자 계정입니다." },
         { status: 401 }
       );
     }
 
-    // 2. 비밀번호 체크 (DB의 password_hash와 입력값 비교)
+    // 2. 비밀번호 체크 (일반 텍스트 비교 방식 유지)
     if (user.password_hash !== password) {
       return NextResponse.json(
         { error: "비밀번호가 일치하지 않습니다." },
@@ -44,12 +46,17 @@ export async function POST(request: Request) {
       success: true,
       user: { 
         id: user.id, 
-        name: user.name 
+        name: user.name,
+        role_id: user.role_id,
+        // 💡 아래와 같이 수정: 배열인지 체크하거나 타입을 강제 지정합니다.
+        role_name: Array.isArray(user.roles) 
+          ? user.roles[0]?.name 
+          : (user.roles as any)?.name || "권한 미정"
       }
     });
 
   } catch (err) {
     console.error("Server Error:", err);
-    return NextResponse.json({ error: "서버 오류 발생" }, { status: 500 });
+    return NextResponse.json({ error: "시스템 통신 중 오류가 발생했습니다." }, { status: 500 });
   }
 }

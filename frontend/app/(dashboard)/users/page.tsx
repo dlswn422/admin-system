@@ -61,13 +61,13 @@ export default function UsersPage() {
     is_active: true 
   });
 
-  // 토스트 알림 함수
+  // 토스트 알림
   const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   }, []);
 
-  // 데이터 로드 (유저 & 역할)
+  // 데이터 로드
   const fetchData = async () => {
     setIsLoading(true);
     try {
@@ -93,7 +93,7 @@ export default function UsersPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // 검색 및 역할 필터링 로직 (성능 최적화)
+  // 검색 및 역할 필터링 로직
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
       const matchesSearch = 
@@ -105,7 +105,6 @@ export default function UsersPage() {
     });
   }, [users, searchQuery, selectedRoleFilter]);
 
-  // 모달 열기 제어
   const openModal = (user: User | null = null) => {
     if (user) {
       setSelectedUser(user);
@@ -131,7 +130,6 @@ export default function UsersPage() {
     setIsModalOpen(true);
   };
 
-  // 저장 로직 (등록/수정 통합)
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const isEdit = !!selectedUser;
@@ -160,7 +158,6 @@ export default function UsersPage() {
     }
   };
 
-  // 삭제 로직
   const handleDelete = async (id: string) => {
     if (!id || id === "undefined") return;
     if (!confirm("해당 계정을 영구적으로 삭제하시겠습니까?")) return;
@@ -170,15 +167,12 @@ export default function UsersPage() {
       if (res.ok) {
         showToast("데이터베이스에서 삭제되었습니다.");
         fetchData();
-      } else {
-        showToast("삭제 중 에러가 발생했습니다.", "error");
       }
     } catch (error) {
-      showToast("서버 통신 중 에러가 발생했습니다.", "error");
+      showToast("삭제 중 에러가 발생했습니다.", "error");
     }
   };
 
-  // 역할별 배지 스타일 (임시 고정)
   const getRoleBadge = (role: string) => {
     const styles: any = {
       "관리자": "bg-indigo-50 text-indigo-600 border-indigo-100",
@@ -252,7 +246,7 @@ export default function UsersPage() {
         ))}
       </div>
 
-      {/* --- 통합 컨트롤러 (검색/필터) --- */}
+      {/* --- 통합 컨트롤러 --- */}
       <div className="flex flex-col md:flex-row gap-4 p-4 bg-white/60 backdrop-blur-xl border border-white rounded-[2.5rem] shadow-sm">
         <div className="relative flex-1 group">
           <Search className="absolute left-6 top-5 w-5 h-5 text-slate-300 group-focus-within:text-blue-500 transition-colors" />
@@ -349,7 +343,7 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* --- 등록/수정 모달 --- */}
+      {/* --- 프리미엄 모달 --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-6 animate-in fade-in duration-300">
           <div className="w-full max-w-xl bg-white rounded-[3.5rem] p-12 shadow-2xl border border-white animate-in zoom-in-95 duration-500">
@@ -364,30 +358,30 @@ export default function UsersPage() {
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-[11px] font-black text-slate-500 uppercase ml-1 tracking-widest">사용자 성함</label>
-                  <input type="text" required value={formData.name} onChange={(e)=>setFormData({...formData, name: e.target.value})} className="w-full rounded-2xl bg-slate-50 border-none px-6 py-5 text-sm font-bold focus:ring-2 ring-blue-500/20 outline-none transition-all text-slate-900" />
+                  <input type="text" required value={formData.name} onChange={(e)=>setFormData({...formData, name: e.target.value})} className="w-full rounded-2xl bg-slate-50 border-none px-6 py-5 text-sm font-bold focus:ring-2 ring-blue-500/20 outline-none transition-all" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[11px] font-black text-slate-500 uppercase ml-1 tracking-widest">비상 연락처</label>
-                  <input type="text" value={formData.phone} onChange={(e)=>setFormData({...formData, phone: e.target.value})} className="w-full rounded-2xl bg-slate-50 border-none px-6 py-5 text-sm font-bold focus:ring-2 ring-blue-500/20 outline-none transition-all text-slate-900" />
+                  <input type="text" value={formData.phone} onChange={(e)=>setFormData({...formData, phone: e.target.value})} className="w-full rounded-2xl bg-slate-50 border-none px-6 py-5 text-sm font-bold focus:ring-2 ring-blue-500/20 outline-none transition-all" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-[11px] font-black text-slate-500 uppercase ml-1 tracking-widest">이메일 계정</label>
-                  <input type="email" required value={formData.email} onChange={(e)=>setFormData({...formData, email: e.target.value})} className="w-full rounded-2xl bg-slate-50 border-none px-6 py-5 text-sm font-bold focus:ring-2 ring-blue-500/20 outline-none transition-all text-slate-900" />
+                  <input type="email" required value={formData.email} onChange={(e)=>setFormData({...formData, email: e.target.value})} className="w-full rounded-2xl bg-slate-50 border-none px-6 py-5 text-sm font-bold focus:ring-2 ring-blue-500/20 outline-none transition-all" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-500 uppercase ml-1 tracking-widest">비밀번호 설정</label>
-                  <input type="password" required={!selectedUser} value={formData.password} onChange={(e)=>setFormData({...formData, password: e.target.value})} className="w-full rounded-2xl bg-slate-50 border-none px-6 py-5 text-sm font-bold focus:ring-2 ring-blue-500/20 outline-none transition-all text-slate-900" placeholder={selectedUser ? "변경 시에만 입력" : "6자리 이상"} />
+                  <label className="text-[11px] font-black text-slate-500 uppercase ml-1 tracking-widest">액세스 비밀번호</label>
+                  <input type="password" required={!selectedUser} value={formData.password} onChange={(e)=>setFormData({...formData, password: e.target.value})} className="w-full rounded-2xl bg-slate-50 border-none px-6 py-5 text-sm font-bold focus:ring-2 ring-blue-500/20 outline-none transition-all" placeholder={selectedUser ? "변경 시에만 입력" : "비밀번호 설정"} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-6 items-end">
                 <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-500 uppercase ml-1 tracking-widest">권한 레벨 할당</label>
+                  <label className="text-[11px] font-black text-slate-500 uppercase ml-1 tracking-widest">권한 레벨</label>
                   <div className="relative">
-                    <select value={formData.role_id} onChange={(e)=>setFormData({...formData, role_id: e.target.value})} className="w-full appearance-none rounded-2xl bg-slate-50 border-none px-6 py-5 text-sm font-bold focus:ring-2 ring-blue-500/20 outline-none transition-all cursor-pointer text-slate-900">
+                    <select value={formData.role_id} onChange={(e)=>setFormData({...formData, role_id: e.target.value})} className="w-full appearance-none rounded-2xl bg-slate-50 border-none px-6 py-5 text-sm font-bold focus:ring-2 ring-blue-500/20 outline-none transition-all cursor-pointer">
                       {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
                     </select>
                     <ChevronDown className="absolute right-6 top-5.5 w-4 h-4 text-slate-300 pointer-events-none" />

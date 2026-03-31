@@ -6,7 +6,7 @@ import {
   ChevronDown, Filter, Trash2, Edit3, Check, Building,
   CalendarDays, MapPin, NotebookTabs, X, 
   ChevronLeft, ChevronRight, FileAudio, Smartphone, Download,
-  Wallet, Mic, Activity, Headphones
+  Wallet, Mic, Activity, Headphones, Layers, Link2
 } from "lucide-react";
 
 interface Customer {
@@ -37,11 +37,20 @@ interface User {
   role_name: string;
 }
 
+interface CommonCode {
+  code_value: string;
+  code_name: string;
+}
+
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
+  // ✨ 공통 코드 상태 추가
+  const [consultCodes, setConsultCodes] = useState<CommonCode[]>([]);
+  const [salesCodes, setSalesCodes] = useState<CommonCode[]>([]);
+
   const [filters, setFilters] = useState({
     date_type: "접수일",
     search: "",
@@ -54,29 +63,39 @@ export default function CustomersPage() {
   const itemsPerPage = 10;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-
   const [formData, setFormData] = useState<Partial<Customer>>({});
 
-  const fetchData = async () => {
+  // 💡 데이터 및 공통 코드 로드
+  const fetchInitialData = async () => {
     setIsLoading(true);
     try {
       const query = new URLSearchParams(filters as any).toString();
-      const [cRes, uRes] = await Promise.all([
+      
+      // 공통 코드 그룹 ID를 찾기 위해 또는 직접 그룹코드로 조회하는 API 호출
+      const [cRes, uRes, consultCodeRes, salesCodeRes] = await Promise.all([
         fetch(`/api/customers?${query}`),
-        fetch("/api/users")
+        fetch("/api/users"),
+        fetch("/api/codes/details/by-group?group_code=CONSULT_STATUS"), // 👈 공통코드 API
+        fetch("/api/codes/details/by-group?group_code=SALES_STATUS")   // 👈 공통코드 API
       ]);
+
       const cData = await cRes.json();
       const uData = await uRes.json();
+      const consultCodesData = await consultCodeRes.json();
+      const salesCodesData = await salesCodeRes.json();
+
       setCustomers(Array.isArray(cData) ? cData : []);
       setUsers(uData || []);
+      setConsultCodes(consultCodesData || []);
+      setSalesCodes(salesCodesData || []);
     } catch (e) {
-      console.error("Fetch error");
+      console.error("Fetch error", e);
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => { fetchData(); }, [filters.tm_id, filters.consult_status, filters.sales_status]);
+  useEffect(() => { fetchInitialData(); }, [filters.tm_id, filters.consult_status, filters.sales_status]);
 
   const totalPages = Math.ceil(customers.length / itemsPerPage);
   const paginatedData = customers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -89,8 +108,8 @@ export default function CustomersPage() {
       setSelectedCustomer(null);
       setFormData({ 
         receipt_date: new Date().toISOString().split('T')[0],
-        consult_status: "대기",
-        sales_status: "방문 전",
+        consult_status: consultCodes[0]?.code_name || "대기",
+        sales_status: salesCodes[0]?.code_name || "방문 전",
         sales_commission: 0
       });
     }
@@ -106,89 +125,103 @@ export default function CustomersPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(formData),
     });
-    if (res.ok) { setIsModalOpen(false); fetchData(); }
+    if (res.ok) { setIsModalOpen(false); fetchInitialData(); }
   };
 
   return (
-    <div className="max-w-[1600px] mx-auto space-y-8 pb-10 px-6 animate-in fade-in duration-700">
+    <div className="max-w-[1600px] mx-auto space-y-10 animate-in fade-in duration-1000 pb-20 px-8 font-sans bg-[#fcfcfd]">
       
-      {/* --- 헤더 섹션 (User Master 톤 일치) --- */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-100 pb-8">
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-[10px] font-black text-blue-600 uppercase tracking-widest">
-            CRM Cloud Operations
+      {/* --- 헤더 섹션 --- */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 py-10">
+        <div className="space-y-4">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900 text-[10px] font-black text-white uppercase tracking-[0.25em] shadow-lg">
+            <Layers className="w-3 h-3" /> CRM Pipeline Engine
           </div>
-          <h1 className="text-5xl font-black text-slate-900 tracking-tight italic font-serif leading-none">고객 통합 관리</h1>
-          <p className="text-slate-400 font-medium text-sm">상담 내역, 녹취 및 영업 정산 데이터를 포함한 통합 마스터입니다.</p>
+          <h1 className="text-6xl font-black text-slate-900 tracking-tighter leading-none italic font-serif">고객 통합 관리</h1>
+          <p className="text-slate-400 font-medium max-w-lg leading-relaxed text-sm">
+            상담 내역, 실시간 녹취 기록 및 영업 정산 데이터를 아우르는 통합 비즈니스 컨트롤 센터입니다.
+          </p>
         </div>
-        
         <div className="flex items-center gap-4">
-          <button onClick={fetchData} className="h-16 w-16 rounded-3xl bg-white border border-slate-200 text-slate-400 hover:text-blue-600 transition-all shadow-sm flex items-center justify-center">
-            <RotateCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+          <button onClick={fetchInitialData} className="h-16 w-16 rounded-[2rem] bg-white border border-slate-100 text-slate-400 hover:text-slate-900 hover:shadow-xl transition-all flex items-center justify-center active:scale-95 shadow-sm">
+            <RotateCw className={`w-6 h-6 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
-          <button onClick={() => openModal()} className="flex items-center gap-3 rounded-3xl bg-slate-900 px-10 py-5 text-sm font-black text-white hover:bg-blue-600 shadow-2xl transition-all">
+          <button onClick={() => openModal()} className="flex items-center gap-3 px-10 py-5 rounded-[2rem] bg-blue-600 text-white text-xs font-black uppercase tracking-widest hover:bg-slate-900 shadow-2xl shadow-blue-200 transition-all active:scale-95">
             <UserPlus className="w-5 h-5" /> <span>신규 고객 추가</span>
           </button>
         </div>
       </div>
 
-      {/* --- 통합 조회 조건 (As-is 기반) --- */}
-      <div className="bg-white/60 backdrop-blur-xl border border-white rounded-[2.5rem] p-8 shadow-sm space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
-          <div className="lg:col-span-2">
-            <select value={filters.date_type} onChange={e => setFilters({...filters, date_type: e.target.value})} className="w-full h-14 rounded-2xl border-2 border-slate-100 px-4 text-sm font-bold outline-none">
+      {/* --- 통합 필터 컨트롤러 --- */}
+      <div className="bg-white border border-slate-100 rounded-[3rem] p-6 shadow-xl space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div className="lg:col-span-2 relative">
+            <select value={filters.date_type} onChange={e => setFilters({...filters, date_type: e.target.value})} className="w-full h-16 appearance-none rounded-2xl bg-slate-50 border-none px-6 text-sm font-black outline-none focus:ring-4 ring-blue-500/5">
               <option>접수일</option><option>상담일자</option><option>영업일자</option>
             </select>
+            <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
           </div>
-          <div className="lg:col-span-4 flex items-center gap-2">
-            <input type="date" className="flex-1 h-14 rounded-2xl border-2 border-slate-100 px-4 text-sm font-bold" />
-            <span className="text-slate-300">~</span>
-            <input type="date" className="flex-1 h-14 rounded-2xl border-2 border-slate-100 px-4 text-sm font-bold" />
+          <div className="lg:col-span-4 flex items-center gap-3">
+            <input type="date" className="flex-1 h-16 rounded-2xl bg-slate-50 border-none px-4 text-sm font-bold outline-none" />
+            <span className="text-slate-300 font-black">~</span>
+            <input type="date" className="flex-1 h-16 rounded-2xl bg-slate-50 border-none px-4 text-sm font-bold outline-none" />
           </div>
           <div className="lg:col-span-4 relative group">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-            <input placeholder="업체명, 성함, 연락처 통합 검색..." className="w-full h-14 pl-14 pr-6 rounded-2xl border-2 border-slate-100 text-sm font-bold focus:ring-4 ring-blue-500/5 transition-all" value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-blue-500 transition-colors" />
+            <input placeholder="업체명, 성함, 연락처 통합 검색..." className="w-full h-16 pl-16 pr-6 rounded-2xl bg-slate-50 border-none text-sm font-bold focus:ring-4 ring-blue-500/5 transition-all outline-none" value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
           </div>
-          <button onClick={fetchData} className="lg:col-span-2 h-14 rounded-2xl bg-blue-600 text-white font-black text-sm hover:bg-slate-900 transition-all shadow-lg">데이터 필터링</button>
+          <button onClick={fetchInitialData} className="lg:col-span-2 h-16 rounded-2xl bg-slate-900 text-white font-black text-xs uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg active:scale-95">Search Filter</button>
         </div>
       </div>
 
-      {/* --- 데이터 목록 테이블 --- */}
-      <div className="bg-white border border-slate-100 rounded-[3rem] overflow-hidden shadow-2xl shadow-slate-200/40">
+      {/* --- 데이터 프리미엄 리스트 --- */}
+      <div className="bg-white border border-slate-100 rounded-[3.5rem] p-4 shadow-xl overflow-hidden relative">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-separate border-spacing-y-3">
             <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                <th className="px-10 py-8">고객정보</th>
-                <th className="px-8 py-8 text-center">상담관리</th>
-                <th className="px-8 py-8 text-center">영업현황</th>
-                <th className="px-10 py-8 text-right">제어</th>
+              <tr className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">
+                <th className="px-10 py-4">Client Identity</th>
+                <th className="px-8 py-4 text-center">Consulting</th>
+                <th className="px-8 py-4 text-center">Sales Logic</th>
+                <th className="px-10 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 text-slate-900">
-              {paginatedData.map((c) => (
-                <tr key={c.id} className="group hover:bg-blue-50/30 transition-colors cursor-pointer font-bold" onClick={() => openModal(c)}>
-                  <td className="px-10 py-7">
-                    <div className="flex items-center gap-5">
-                      <div className="h-14 w-14 rounded-2xl bg-slate-900 flex items-center justify-center text-white text-xl font-black shadow-xl italic font-serif">{c.customer_name?.[0]}</div>
-                      <div>
-                        <div className="text-lg tracking-tight font-black">{c.company_name || "개인고객"}</div>
-                        <div className="text-[11px] text-slate-400 flex items-center gap-1 uppercase"><UserCircle className="w-3 h-3"/> {c.customer_name}</div>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={4} className="py-40 text-center text-slate-300 animate-pulse font-black uppercase text-xs tracking-widest italic">Synchronizing Operational Data...</td></tr>
+              ) : paginatedData.map((c) => (
+                <tr key={c.id} className="group hover:scale-[1.005] transition-all duration-300 cursor-pointer" onClick={() => openModal(c)}>
+                  <td className="px-10 py-7 rounded-l-[2.5rem] bg-slate-50/50 group-hover:bg-white border-l border-t border-b border-transparent group-hover:border-slate-100 transition-all">
+                    <div className="flex items-center gap-6">
+                      <div className="h-16 w-16 rounded-2xl bg-white shadow-inner flex items-center justify-center font-black text-slate-400 text-xl italic font-serif group-hover:bg-slate-900 group-hover:text-white transition-all duration-500">
+                        {c.customer_name?.[0] || 'C'}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xl font-black text-slate-900 tracking-tight leading-none uppercase">{c.company_name || "Personal Client"}</p>
+                        <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400">
+                          <UserCircle className="w-3 h-3 text-blue-500"/> {c.customer_name}
+                          <span className="w-1 h-1 rounded-full bg-slate-200" />
+                          <Smartphone className="w-3 h-3 text-blue-500"/> {c.mobile_phone}
+                        </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-8 py-7 text-center">
-                    <div className="text-sm">{users.find(u => u.id === c.tm_id)?.name || "미배정"}</div>
-                    <div className={`mt-1.5 inline-flex px-3 py-1 rounded-full text-[9px] uppercase ${c.consult_status === '방문약속' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>{c.consult_status}</div>
+                  <td className="px-8 py-7 text-center bg-slate-50/50 group-hover:bg-white border-t border-b border-transparent group-hover:border-slate-100">
+                    <div className="text-sm font-black text-slate-900 uppercase italic font-serif">
+                      {users.find(u => u.id === c.tm_id)?.name || "Unassigned"}
+                    </div>
+                    <span className={`mt-2 inline-flex px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter ${c.consult_status === '방문약속' ? 'bg-emerald-50 text-emerald-600' : 'bg-white text-slate-400 border border-slate-100'}`}>
+                      {c.consult_status}
+                    </span>
                   </td>
-                  <td className="px-8 py-7 text-center">
-                    <div className="text-sm text-blue-600">{c.sales_status}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">₩{c.sales_commission?.toLocaleString()}</div>
+                  <td className="px-8 py-7 text-center bg-slate-50/50 group-hover:bg-white border-t border-b border-transparent group-hover:border-slate-100">
+                    <div className="text-sm font-black text-blue-600 uppercase italic font-serif">{c.sales_status}</div>
+                    <div className="text-[10px] font-black text-slate-400 font-mono tracking-tighter mt-1">₩{c.sales_commission?.toLocaleString()}</div>
                   </td>
-                  <td className="px-10 py-7 text-right">
+                  <td className="px-10 py-7 rounded-r-[2.5rem] bg-slate-50/50 group-hover:bg-white border-r border-t border-b border-transparent group-hover:border-slate-100 text-right">
                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-                      <button className="p-3 rounded-xl hover:bg-slate-900 hover:text-white text-slate-300 shadow-sm"><Edit3 className="w-4.5 h-4.5" /></button>
-                      <button className="p-3 rounded-xl hover:bg-rose-600 hover:text-white text-slate-300 shadow-sm"><Trash2 className="w-4.5 h-4.5" /></button>
+                      <button className="h-12 w-12 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 hover:border-slate-900 hover:shadow-lg transition-all flex items-center justify-center active:scale-90"><Edit3 className="w-5 h-5" /></button>
+                      <button className="h-12 w-12 rounded-xl bg-white border border-rose-100 text-rose-300 hover:text-rose-600 hover:bg-rose-50 transition-all flex items-center justify-center active:scale-90"><Trash2 className="w-5 h-5" /></button>
                     </div>
                   </td>
                 </tr>
@@ -197,106 +230,153 @@ export default function CustomersPage() {
           </table>
         </div>
         
-        {/* --- 페이지네이션 --- */}
-        <div className="px-10 py-8 border-t border-slate-50 flex items-center justify-between bg-slate-50/30">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic font-serif">Viewing Page {currentPage} / {totalPages || 1}</span>
-          <div className="flex gap-2">
-            <button disabled={currentPage === 1} onClick={(e) => { e.stopPropagation(); setCurrentPage(p => p - 1); }} className="h-10 w-10 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:bg-slate-900 hover:text-white transition-all disabled:opacity-20"><ChevronLeft className="w-4 h-4"/></button>
-            <button disabled={currentPage === totalPages || totalPages === 0} onClick={(e) => { e.stopPropagation(); setCurrentPage(p => p + 1); }} className="h-10 w-10 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:bg-slate-900 hover:text-white transition-all disabled:opacity-20"><ChevronRight className="w-4 h-4"/></button>
+        {/* 페이지네이션 */}
+        <div className="px-10 py-8 flex items-center justify-between border-t border-slate-50 bg-slate-50/20">
+          <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Viewing Entry {currentPage} / {totalPages || 1}</span>
+          <div className="flex gap-3">
+            <button disabled={currentPage === 1} onClick={(e) => { e.stopPropagation(); setCurrentPage(p => p - 1); }} className="h-12 w-12 flex items-center justify-center rounded-2xl bg-white border border-slate-200 text-slate-400 hover:bg-slate-900 hover:text-white transition-all disabled:opacity-20 active:scale-90 shadow-sm"><ChevronLeft className="w-5 h-5"/></button>
+            <button disabled={currentPage === totalPages || totalPages === 0} onClick={(e) => { e.stopPropagation(); setCurrentPage(p => p + 1); }} className="h-12 w-12 flex items-center justify-center rounded-2xl bg-white border border-slate-200 text-slate-400 hover:bg-slate-900 hover:text-white transition-all disabled:opacity-20 active:scale-90 shadow-sm"><ChevronRight className="w-5 h-5"/></button>
           </div>
         </div>
       </div>
 
-      {/* --- ✨ 01-03 단계 섹션 모달 (As-is 필드 무생략 구현) --- */}
+      {/* --- 마스터 데이터 에디터 모달 --- */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/20 backdrop-blur-3xl p-6 animate-in fade-in duration-300">
-          <div className="w-full max-w-6xl bg-white rounded-[4rem] p-16 shadow-2xl border border-white animate-in zoom-in-95 duration-500 overflow-y-auto max-h-[95vh]">
-            <div className="flex justify-between items-center mb-12">
-               <h2 className="text-4xl font-black text-slate-900 tracking-tighter italic font-serif uppercase">Customer Information Node</h2>
-               <button onClick={() => setIsModalOpen(false)} className="h-14 w-14 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all active:scale-90"><X className="w-6 h-6"/></button>
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/40 backdrop-blur-xl p-6 animate-in fade-in duration-500">
+          <div className="w-full max-w-6xl bg-white rounded-[4rem] p-16 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] border border-white animate-in zoom-in-95 duration-500 overflow-y-auto max-h-[90vh] custom-scrollbar relative">
+            
+            <button onClick={() => setIsModalOpen(false)} className="absolute top-10 right-10 h-14 w-14 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 hover:text-slate-900 transition-all active:scale-90"><X className="w-6 h-6"/></button>
+            
+            <div className="mb-14">
+               <h2 className="text-5xl font-black text-slate-900 tracking-tighter italic font-serif uppercase">Customer Node Editor</h2>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-3">Integrated Pipeline Logic Specification</p>
             </div>
             
-            <form onSubmit={handleSave} className="space-y-12">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+            <form onSubmit={handleSave} className="space-y-16">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                 
-                {/* 01. 기본 인적 사항 (As-is 필드) */}
-                <div className="space-y-6">
-                  <h4 className="flex items-center gap-2 text-sm font-black uppercase text-slate-900 tracking-widest"><Building className="w-4 h-4"/> 01. Profile Info</h4>
-                  <div className="space-y-4 p-8 bg-slate-50 rounded-[2.5rem]">
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">업체명 *</label><input required className="w-full h-14 px-6 rounded-2xl bg-white border-none font-bold text-sm shadow-sm" value={formData.company_name || ""} onChange={e => setFormData({...formData, company_name: e.target.value})}/></div>
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">성명(대표자)</label><input className="w-full h-14 px-6 rounded-2xl bg-white border-none font-bold text-sm shadow-sm" value={formData.customer_name || ""} onChange={e => setFormData({...formData, customer_name: e.target.value})}/></div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">핸드폰</label><input className="w-full h-14 px-6 rounded-2xl bg-white border-none font-bold text-sm shadow-sm text-blue-600" value={formData.mobile_phone || ""} onChange={e => setFormData({...formData, mobile_phone: e.target.value})}/></div>
-                      <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">유선전화</label><input className="w-full h-14 px-6 rounded-2xl bg-white border-none font-bold text-sm shadow-sm" value={formData.landline_phone || ""} onChange={e => setFormData({...formData, landline_phone: e.target.value})}/></div>
+                {/* 01. Profile Area */}
+                <div className="space-y-8">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-1 rounded-full bg-blue-600" />
+                    <h4 className="text-sm font-black uppercase text-slate-900 tracking-widest">01. Identity</h4>
+                  </div>
+                  <div className="space-y-5 p-10 bg-slate-50 rounded-[3rem]">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Company Name *</label>
+                      <input required className="w-full h-16 px-6 rounded-2xl bg-white border-none font-bold text-base shadow-sm focus:ring-4 ring-blue-500/5 transition-all outline-none" value={formData.company_name || ""} onChange={e => setFormData({...formData, company_name: e.target.value})}/>
                     </div>
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">주소</label><input className="w-full h-14 px-6 rounded-2xl bg-white border-none font-bold text-sm shadow-sm" value={formData.address || ""} onChange={e => setFormData({...formData, address: e.target.value})}/></div>
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">비고(특이사항)</label><textarea rows={3} className="w-full p-6 rounded-3xl bg-white border-none font-bold text-sm shadow-sm resize-none" value={formData.note || ""} onChange={e => setFormData({...formData, note: e.target.value})} /></div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Representative</label>
+                      <input className="w-full h-16 px-6 rounded-2xl bg-white border-none font-bold text-base shadow-sm outline-none" value={formData.customer_name || ""} onChange={e => setFormData({...formData, customer_name: e.target.value})}/>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mobile</label>
+                        <input className="w-full h-16 px-6 rounded-2xl bg-white border-none font-bold text-base shadow-sm outline-none text-blue-600" value={formData.mobile_phone || ""} onChange={e => setFormData({...formData, mobile_phone: e.target.value})}/>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Landline</label>
+                        <input className="w-full h-16 px-6 rounded-2xl bg-white border-none font-bold text-base shadow-sm outline-none" value={formData.landline_phone || ""} onChange={e => setFormData({...formData, landline_phone: e.target.value})}/>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Location Address</label>
+                      <input className="w-full h-16 px-6 rounded-2xl bg-white border-none font-bold text-base shadow-sm outline-none" value={formData.address || ""} onChange={e => setFormData({...formData, address: e.target.value})}/>
+                    </div>
                   </div>
                 </div>
 
-                {/* 02. TM 상담 정보 (As-is 필드) */}
-                <div className="space-y-6">
-                  <h4 className="flex items-center gap-2 text-sm font-black uppercase text-blue-600 tracking-widest"><Mic className="w-4 h-4"/> 02. Consultation</h4>
-                  <div className="space-y-4 p-8 bg-blue-50/30 rounded-[2.5rem] border border-blue-50">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5"><label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-1">배정 상담사</label>
-                        <select className="w-full h-14 px-4 rounded-2xl bg-white border-none font-bold text-sm" value={formData.tm_id || ""} onChange={e => setFormData({...formData, tm_id: e.target.value})}>
+                {/* 02. Consultation Area (✨ 공통코드 연동) */}
+                <div className="space-y-8">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-1 rounded-full bg-emerald-500" />
+                    <h4 className="text-sm font-black uppercase text-slate-900 tracking-widest">02. Consulting</h4>
+                  </div>
+                  <div className="space-y-5 p-10 bg-emerald-50/30 rounded-[3rem] border border-emerald-100">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-1">Assign TM</label>
+                        <select className="w-full h-16 px-4 rounded-2xl bg-white border-none font-bold text-sm shadow-sm outline-none" value={formData.tm_id || ""} onChange={e => setFormData({...formData, tm_id: e.target.value})}>
                           <option value="">미배정</option>
                           {users.filter(u => u.role_name === 'TM').map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                         </select>
                       </div>
-                      <div className="space-y-1.5"><label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-1">상담상태</label>
-                        <select className="w-full h-14 px-4 rounded-2xl bg-white border-none font-bold text-sm" value={formData.consult_status || "선택"} onChange={e => setFormData({...formData, consult_status: e.target.value})}>
-                          {["선택", "미배정", "대기", "부재", "관리", "거절", "방문약속"].map(s => <option key={s}>{s}</option>)}
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-1">상담 상태</label>
+                        <select className="w-full h-16 px-4 rounded-2xl bg-white border-none font-bold text-sm shadow-sm outline-none" value={formData.consult_status || ""} onChange={e => setFormData({...formData, consult_status: e.target.value})}>
+                          {consultCodes.map(code => (
+                            <option key={code.code_value} value={code.code_name}>{code.code_name}</option>
+                          ))}
                         </select>
                       </div>
                     </div>
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-1">상담일자</label><input type="datetime-local" className="w-full h-14 px-6 rounded-2xl bg-white border-none font-bold text-sm" value={formData.consult_date || ""} onChange={e => setFormData({...formData, consult_date: e.target.value})}/></div>
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-1">상담 상세내용</label><textarea rows={4} className="w-full p-6 rounded-3xl bg-white border-none font-bold text-sm resize-none" value={formData.consult_memo || ""} onChange={e => setFormData({...formData, consult_memo: e.target.value})} /></div>
-                    <div className="space-y-2 pt-2">
-                       <label className="text-[10px] font-black text-blue-300 uppercase tracking-widest ml-1">Recording Logs</label>
-                       <div className="h-12 bg-white rounded-xl border border-dashed border-blue-200 flex items-center justify-center text-[10px] font-black text-blue-300 gap-2 cursor-pointer hover:bg-blue-100 transition-all"><FileAudio className="w-4 h-4"/> 녹취파일 01</div>
-                       <div className="h-12 bg-white rounded-xl border border-dashed border-blue-200 flex items-center justify-center text-[10px] font-black text-blue-300 gap-2 cursor-pointer hover:bg-blue-100 transition-all"><FileAudio className="w-4 h-4"/> 녹취파일 02</div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-1">상담 일자</label>
+                      <input type="datetime-local" className="w-full h-16 px-6 rounded-2xl bg-white border-none font-bold text-sm shadow-sm outline-none" value={formData.consult_date || ""} onChange={e => setFormData({...formData, consult_date: e.target.value})}/>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-1">Consulting Logs</label>
+                      <textarea rows={6} className="w-full p-6 rounded-[2rem] bg-white border-none font-bold text-sm shadow-sm resize-none outline-none" value={formData.consult_memo || ""} onChange={e => setFormData({...formData, consult_memo: e.target.value})} />
                     </div>
                   </div>
                 </div>
 
-                {/* 03. 영업 및 정산 정보 (As-is 필드) */}
-                <div className="space-y-6">
-                  <h4 className="flex items-center gap-2 text-sm font-black uppercase text-violet-600 tracking-widest"><Wallet className="w-4 h-4"/> 03. Sales & Revenue</h4>
-                  <div className="space-y-4 p-8 bg-violet-50/30 rounded-[2.5rem] border border-violet-50">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5"><label className="text-[10px] font-black text-violet-400 uppercase tracking-widest ml-1">배정 영업원</label>
-                        <select className="w-full h-14 px-4 rounded-2xl bg-white border-none font-bold text-sm" value={formData.sales_id || ""} onChange={e => setFormData({...formData, sales_id: e.target.value})}>
+                {/* 03. Sales Area (✨ 공통코드 연동) */}
+                <div className="space-y-8">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-1 rounded-full bg-blue-600" />
+                    <h4 className="text-sm font-black uppercase text-slate-900 tracking-widest">03. Performance</h4>
+                  </div>
+                  <div className="space-y-5 p-10 bg-blue-50/30 rounded-[3rem] border border-blue-100">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Assign Sales</label>
+                        <select className="w-full h-16 px-4 rounded-2xl bg-white border-none font-bold text-sm shadow-sm outline-none" value={formData.sales_id || ""} onChange={e => setFormData({...formData, sales_id: e.target.value})}>
                           <option value="">선택</option>
                           {users.filter(u => u.role_name === '영업').map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                         </select>
                       </div>
-                      <div className="space-y-1.5"><label className="text-[10px] font-black text-violet-400 uppercase tracking-widest ml-1">영업상태</label>
-                        <select className="w-full h-14 px-4 rounded-2xl bg-white border-none font-bold text-sm" value={formData.sales_status || "선택"} onChange={e => setFormData({...formData, sales_status: e.target.value})}>
-                          {["방문 전", "진행중", "계약완료", "보류", "조회요청", "조회거절", "분납", "정산완료"].map(s => <option key={s}>{s}</option>)}
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">영업 상태</label>
+                        <select className="w-full h-16 px-4 rounded-2xl bg-white border-none font-bold text-sm shadow-sm outline-none" value={formData.sales_status || ""} onChange={e => setFormData({...formData, sales_status: e.target.value})}>
+                          {salesCodes.map(code => (
+                            <option key={code.code_value} value={code.code_name}>{code.code_name}</option>
+                          ))}
                         </select>
                       </div>
                     </div>
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-violet-400 uppercase tracking-widest ml-1">영업수당 (Settlement)</label><input type="number" className="w-full h-14 px-6 rounded-2xl bg-white border-none font-black text-sm text-violet-600" value={formData.sales_commission || 0} onChange={e => setFormData({...formData, sales_commission: Number(e.target.value)})}/></div>
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-violet-400 uppercase tracking-widest ml-1">영업 상세메모</label><textarea rows={7} className="w-full p-6 rounded-3xl bg-white border-none font-bold text-sm resize-none" value={formData.sales_memo || ""} onChange={e => setFormData({...formData, sales_memo: e.target.value})} /></div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Commission Amount</label>
+                      <input type="number" className="w-full h-16 px-6 rounded-2xl bg-white border-none font-black text-lg shadow-sm outline-none text-blue-600" value={formData.sales_commission || 0} onChange={e => setFormData({...formData, sales_commission: Number(e.target.value)})}/>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Performance Note</label>
+                      <textarea rows={6} className="w-full p-6 rounded-[2rem] bg-white border-none font-bold text-sm shadow-sm resize-none outline-none" value={formData.sales_memo || ""} onChange={e => setFormData({...formData, sales_memo: e.target.value})} />
+                    </div>
                   </div>
                 </div>
               </div>
 
+              {/* 하단 푸터 바 */}
               <div className="flex gap-4 pt-10 border-t border-slate-100 items-center justify-between">
-                <div className="flex items-center gap-4 bg-slate-50 px-8 py-5 rounded-[2rem] text-[10px] font-black text-slate-400 uppercase tracking-widest italic">
-                  <CalendarDays className="w-4 h-4" /> Final Receipt: {formData.receipt_date}
+                <div className="flex items-center gap-4 bg-slate-50 px-10 py-6 rounded-full text-[11px] font-black text-slate-400 uppercase tracking-widest italic font-serif">
+                  <CalendarDays className="w-5 h-5 text-blue-500" /> System Receipt: {formData.receipt_date}
                 </div>
                 <div className="flex gap-4">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-10 h-20 rounded-[2rem] font-black text-slate-400 hover:text-slate-900 transition-all text-xs uppercase tracking-widest">Cancel Dismiss</button>
-                  <button type="submit" className="px-20 h-20 rounded-[2rem] bg-slate-900 text-white font-black text-xs shadow-2xl hover:bg-blue-600 transition-all active:scale-95 uppercase tracking-widest">Deployment Commit</button>
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-12 h-20 rounded-full font-black text-slate-400 hover:text-slate-900 transition-all text-xs uppercase tracking-widest">Dismiss</button>
+                  <button type="submit" className="px-24 h-20 rounded-full bg-slate-900 text-white font-black text-xs shadow-2xl hover:bg-blue-600 transition-all active:scale-95 uppercase tracking-widest">Commit Operational Node</button>
                 </div>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      <style jsx>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.05); border-radius: 10px; }
+      `}</style>
     </div>
   );
 }

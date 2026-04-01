@@ -3,39 +3,32 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { 
-  LogOut, 
-  LayoutDashboard, 
-  Users, 
-  Settings, 
-  ShieldCheck, 
-  Menu as MenuIcon,
-  Search,
-  RotateCw,
-  X
-} from "lucide-react";
+import { LogOut, Sparkles, ShieldCheck } from "lucide-react";
 
 interface MenuItem {
   id: string;
   title: string;
   path: string;
-  icon: string; // 데이터베이스에 저장된 이모지 또는 아이콘 이름
+  icon: string;
 }
 
 interface UserInfo {
   name: string;
   role: string;
-  role_id?: string; // 권한 필터링 핵심 키
+  role_id?: string;
 }
 
-export default function AdminSidebar({ onLogoutOpen }: { onLogoutOpen: () => void }) {
+export default function AdminSidebar({
+  onLogoutOpen,
+}: {
+  onLogoutOpen: () => void;
+}) {
   const pathname = usePathname();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<UserInfo | null>(null);
 
   useEffect(() => {
-    // 1. 유저 정보 로드 (localStorage)
     const storedUser = localStorage.getItem("user");
     let currentUser: UserInfo | null = null;
 
@@ -48,18 +41,16 @@ export default function AdminSidebar({ onLogoutOpen }: { onLogoutOpen: () => voi
       }
     }
 
-    // 2. 권한 기반 메뉴 Fetch
     const fetchMenus = async () => {
       setIsLoading(true);
       try {
-        // 💡 role_id가 있을 때만 쿼리 파라미터로 전달 (백엔드 필터링 보장)
         const roleId = currentUser?.role_id;
-        
-        // role_id가 없으면 보안상 API에서 빈 배열을 반환하도록 설계됨
-        const response = await fetch(`/api/menus${roleId ? `?role_id=${roleId}` : ""}`);
-        
+        const response = await fetch(
+          `/api/menus${roleId ? `?role_id=${roleId}` : ""}`
+        );
+
         if (!response.ok) throw new Error("메뉴 응답 오류");
-        
+
         const data = await response.json();
         if (Array.isArray(data)) {
           setMenuItems(data);
@@ -75,102 +66,195 @@ export default function AdminSidebar({ onLogoutOpen }: { onLogoutOpen: () => voi
   }, []);
 
   return (
-    <aside className="flex h-screen w-full flex-col bg-[#020617] text-slate-200 shadow-2xl overflow-hidden border-r border-white/5 font-sans">
-      
-      {/* --- 상단 로고 및 브랜딩 --- */}
-      <div className="shrink-0 px-8 py-9">
-        <div className="flex items-center gap-4 group cursor-pointer">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-xl font-black text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-transform group-hover:scale-110 duration-500 italic font-serif">
-            A
-          </div>
-          <div className="leading-tight">
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500/80">Operational Hub</p>
-            <h1 className="text-xl font-black tracking-tighter text-white italic font-serif">ADMIN <span className="font-light text-slate-500 not-italic">OS</span></h1>
+    <aside className="dashboard-sidebar-surface relative flex h-screen w-full flex-col overflow-hidden text-slate-100">
+      {/* 배경 장식 */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-16 top-24 h-48 w-48 rounded-full bg-blue-500/10 blur-3xl" />
+        <div className="absolute -right-20 top-1/3 h-56 w-56 rounded-full bg-violet-500/10 blur-3xl" />
+        <div className="absolute bottom-0 left-1/4 h-40 w-40 rounded-full bg-cyan-400/10 blur-3xl" />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-400/35 to-transparent" />
+      </div>
+
+
+
+
+      {/* 브랜드 */}
+      <div className="relative z-10 shrink-0 px-5 pt-4 pb-4 fade-up">
+        <div className="group relative overflow-hidden rounded-[22px] border border-white/10 bg-[linear-gradient(135deg,rgba(8,15,30,0.92),rgba(6,12,24,0.82))] px-5 py-4 shadow-[0_18px_44px_rgba(2,6,23,0.24)] backdrop-blur-xl">
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.05),transparent_32%,transparent_68%,rgba(59,130,246,0.05))]" />
+          <div className="absolute -left-8 top-1/2 h-20 w-20 -translate-y-1/2 rounded-full bg-blue-500/12 blur-3xl transition-transform duration-700 group-hover:scale-125" />
+          <div className="absolute right-0 top-0 h-full w-20 bg-gradient-to-l from-blue-500/6 to-transparent opacity-80" />
+          <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-blue-400/20 to-transparent" />
+
+          <div className="relative flex items-center gap-3.5">
+            {/* 로고 */}
+            <div className="relative flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-500 text-white shadow-[0_14px_30px_rgba(59,130,246,0.26)] transition-all duration-500 group-hover:-translate-y-0.5 group-hover:scale-[1.03]">
+              <div className="absolute inset-0 rounded-[18px] bg-[linear-gradient(135deg,rgba(255,255,255,0.18),transparent_35%,transparent_70%,rgba(255,255,255,0.06))]" />
+              <svg
+                className="relative z-10 h-6 w-6"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 12l10 5 10-5" />
+                <path d="M2 17l10 5 10-5" />
+              </svg>
+            </div>
+
+            {/* 텍스트 */}
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-[1.15rem] font-extrabold leading-tight tracking-[-0.03em] text-white">
+                Admin
+              </h1>
+              <p className="mt-1 truncate text-[0.82rem] font-semibold leading-tight tracking-[-0.01em] text-slate-400">
+                관리 시스템
+              </p>
+            </div>
           </div>
         </div>
       </div>
+      
+      {/* 사용자 카드 */}
+      <div
+        className="relative z-10 shrink-0 px-6 pb-5 soft-scale-in"
+        style={{ animationDelay: "80ms" }}
+      >
+        <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_18px_44px_rgba(2,6,23,0.22)] backdrop-blur-xl">
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent)]" />
+          <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-blue-500/10 blur-2xl" />
 
-      {/* --- 사용자 권한 정보 카드 --- */}
-      <div className="shrink-0 px-6 py-4">
-        <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md">
-          <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-blue-500/10 blur-2xl" />
-          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">Identity Verified</p>
-          <div className="flex items-end justify-between">
-            <div className="space-y-1">
-              <p className="text-xl font-black text-white tracking-tight">{user?.name || "Accessing..."}</p>
-              <div className="flex items-center gap-2">
-                <div className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+          <div className="relative">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold tracking-[0.16em] text-emerald-200">
+              <ShieldCheck className="h-3 w-3" />
+              VERIFIED
+            </div>
+
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-lg font-bold tracking-tight text-white">
+                  {user?.name || "불러오는 중..."}
+                </p>
+                <div className="mt-2 flex items-center gap-2 text-sm text-slate-400">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-70 [animation:dot-ping-soft_1.8s_ease-out_infinite]" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                  </span>
+                  <span className="truncate">{user?.role || "권한 확인 중"}</span>
                 </div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{user?.role || "Checking Role..."}</p>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[11px] font-medium text-slate-300 shadow-inner">
+                실시간
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* --- 시스템 메뉴 내비게이션 --- */}
-      <nav className="flex-1 px-4 py-8 overflow-y-auto custom-scrollbar">
-        <p className="mb-6 px-5 text-[10px] font-black uppercase tracking-[0.3em] text-slate-600 italic">System Console</p>
+      {/* 메뉴 */}
+      <nav className="custom-scrollbar relative z-10 flex-1 overflow-y-auto px-4 pb-5">
+        <div
+          className="mb-4 px-3 fade-up"
+          style={{ animationDelay: "120ms" }}
+        >
+          <p className="text-[11px] font-semibold tracking-[0.18em] text-slate-500">
+            NAVIGATION
+          </p>
+        </div>
+
         <ul className="space-y-2">
           {isLoading ? (
-            // 로딩 스켈레톤
-            [1, 2, 3, 4, 5].map(i => (
-              <li key={i} className="h-14 w-full animate-pulse rounded-2xl bg-white/5 mx-auto" />
+            [1, 2, 3, 4, 5].map((i) => (
+              <li
+                key={i}
+                className="overflow-hidden rounded-2xl border border-white/6 bg-white/[0.03]"
+              >
+                <div className="relative h-14 animate-pulse">
+                  <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-transparent via-white/10 to-transparent [animation:shimmer-x_1.8s_linear_infinite]" />
+                </div>
+              </li>
             ))
           ) : menuItems.length > 0 ? (
-            menuItems.map((item) => {
-              const isActive = pathname === item.path || pathname.startsWith(item.path + "/");
+            menuItems.map((item, index) => {
+              const isActive =
+                pathname === item.path || pathname.startsWith(item.path + "/");
+
               return (
-                <li key={item.id}>
-                  <Link 
-                    href={item.path} 
-                    className={`group flex items-center gap-4 rounded-2xl px-6 py-4 text-sm font-bold transition-all duration-500 ${
-                      isActive 
-                        ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-[0_10px_20px_-5px_rgba(37,99,235,0.3)]" 
-                        : "text-slate-500 hover:bg-white/[0.04] hover:text-white"
+                <li
+                  key={item.id}
+                  className="fade-up"
+                  style={{ animationDelay: `${160 + index * 40}ms` }}
+                >
+                  <Link
+                    href={item.path}
+                    className={`group relative flex items-center gap-4 overflow-hidden rounded-2xl border px-4 py-3.5 transition-all duration-300 ${
+                      isActive
+                        ? "border-blue-400/20 bg-gradient-to-r from-blue-500/18 via-indigo-500/14 to-violet-500/12 text-white shadow-[0_16px_34px_rgba(37,99,235,0.16)]"
+                        : "border-transparent bg-transparent text-slate-400 hover:border-white/8 hover:bg-white/[0.045] hover:text-white"
                     }`}
                   >
-                    <span className={`text-xl transition-all duration-500 ${isActive ? "scale-110 rotate-3" : "group-hover:scale-125 group-hover:text-blue-400"}`}>
+                    <div
+                      className={`absolute inset-0 opacity-0 transition-opacity duration-500 ${
+                        isActive
+                          ? "bg-[linear-gradient(120deg,transparent_0%,rgba(255,255,255,0.08)_20%,transparent_40%)] opacity-100 [animation:shimmer-x_3.2s_linear_infinite]"
+                          : "group-hover:opacity-100 bg-[linear-gradient(120deg,transparent_0%,rgba(255,255,255,0.05)_20%,transparent_40%)]"
+                      }`}
+                    />
+
+                    <span
+                      className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-xl border text-lg transition-all duration-300 ${
+                        isActive
+                          ? "border-blue-300/20 bg-white/10 shadow-[0_0_0_1px_rgba(255,255,255,0.04)_inset] [animation:pulse-glow_2.6s_ease-in-out_infinite_alternate]"
+                          : "border-white/8 bg-white/[0.03] group-hover:border-blue-400/15 group-hover:bg-blue-500/10 group-hover:scale-105"
+                      }`}
+                    >
                       {item.icon}
                     </span>
-                    <span className="tracking-tight uppercase text-xs font-black">{item.title}</span>
-                    {isActive && (
-                      <div className="ml-auto h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_10px_#fff] animate-pulse" />
-                    )}
+
+                    <div className="relative z-10 min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold tracking-tight">
+                        {item.title}
+                      </span>
+                    </div>
+
+                    <div className="relative z-10 ml-auto flex items-center">
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full transition-all duration-300 ${
+                          isActive
+                            ? "bg-white shadow-[0_0_12px_rgba(255,255,255,0.95)]"
+                            : "bg-transparent group-hover:bg-blue-400/70"
+                        }`}
+                      />
+                    </div>
                   </Link>
                 </li>
               );
             })
           ) : (
-            // 권한 없음 안내
-            <div className="px-5 py-12 text-center border border-dashed border-white/5 rounded-[2rem]">
-              <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest leading-relaxed">
-                접근 가능한<br/>모듈이 없습니다.
-              </p>
+            <div className="mx-2 rounded-[24px] border border-dashed border-white/10 bg-white/[0.025] px-5 py-10 text-center text-sm text-slate-500">
+              접근 가능한 메뉴가 없습니다.
             </div>
           )}
         </ul>
       </nav>
 
-      {/* --- 하단 로그아웃 컨트롤 --- */}
-      <div className="shrink-0 border-t border-white/5 bg-[#020617] p-6">
-        <button 
-          onClick={onLogoutOpen} 
-          className="group flex w-full items-center justify-center gap-3 rounded-[2rem] border border-rose-500/20 bg-rose-500/5 py-5 text-xs font-black text-rose-500 transition-all hover:bg-rose-500 hover:text-white active:scale-[0.97] shadow-xl shadow-rose-500/5 uppercase tracking-widest"
+      {/* 하단 액션 */}
+      <div className="relative z-10 shrink-0 px-6 pb-6 pt-4">
+        <div className="mb-4 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+        <button
+          onClick={onLogoutOpen}
+          className="group relative flex w-full items-center justify-center gap-3 overflow-hidden rounded-[20px] border border-rose-400/15 bg-rose-500/[0.08] px-4 py-4 text-sm font-semibold text-rose-200 shadow-[0_14px_32px_rgba(244,63,94,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:border-rose-300/25 hover:bg-rose-500/[0.14] hover:text-white"
         >
-          <LogOut className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-          <span>Exit System</span>
+          <div className="absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 bg-[linear-gradient(120deg,transparent_0%,rgba(255,255,255,0.12)_20%,transparent_40%)] [animation:shimmer-x_2.8s_linear_infinite]" />
+          <LogOut className="relative z-10 h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
+          <span className="relative z-10">로그아웃</span>
         </button>
       </div>
-
-      <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.03); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.08); }
-      `}</style>
     </aside>
   );
 }

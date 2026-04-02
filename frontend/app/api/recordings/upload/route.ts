@@ -68,7 +68,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const safeFileName = file.name.replace(/[^\w.\-가-힣]/g, "_");
+    const safeFileName = file.name
+      .normalize("NFKD")
+      .replace(/[^\w.\-]/g, "_");
     const filePath = `${customerId}/${Date.now()}_${safeFileName}`;
 
     const { error: uploadError } = await supabase.storage

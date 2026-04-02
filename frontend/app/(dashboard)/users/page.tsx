@@ -46,19 +46,23 @@ interface Toast {
 }
 
 export default function UsersPage() {
+  // 1. Data States
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [toast, setToast] = useState<Toast | null>(null);
 
+  // 2. Filter States
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState("all");
 
+  // 3. Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
+  // 4. Form States
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -68,6 +72,7 @@ export default function UsersPage() {
     is_active: true,
   });
 
+  // --- Handlers: Feedback ---
   const showToast = useCallback(
     (message: string, type: "success" | "error" = "success") => {
       setToast({ message, type });
@@ -87,6 +92,7 @@ export default function UsersPage() {
     return `${year}. ${month}. ${day}`;
   }, []);
 
+  // --- Handlers: API Fetch ---
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -121,6 +127,7 @@ export default function UsersPage() {
     fetchData();
   }, [fetchData]);
 
+  // --- Memos: Filtering & Statistics ---
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
       const matchesSearch =
@@ -167,6 +174,7 @@ export default function UsersPage() {
     return parts.join(" · ");
   }, [filteredUsers.length, searchQuery, selectedRoleFilter, users.length]);
 
+  // --- Handlers: Modal Control ---
   const openModal = (user: User | null = null) => {
     if (user) {
       setSelectedUser(user);
@@ -193,6 +201,7 @@ export default function UsersPage() {
     setIsModalOpen(true);
   };
 
+  // --- Handlers: Save (POST & PATCH) ---
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const isEdit = !!selectedUser;
@@ -214,13 +223,15 @@ export default function UsersPage() {
         setIsModalOpen(false);
         fetchData();
       } else {
-        showToast("처리 중 오류가 발생했습니다.", "error");
+        const errorData = await res.json();
+        showToast(errorData.error || "처리 중 오류가 발생했습니다.", "error");
       }
     } catch (error) {
       showToast("네트워크 통신 오류", "error");
     }
   };
 
+  // --- Handlers: Delete ---
   const openDeleteModal = (user: User) => {
     setDeleteTarget(user);
     setIsDeleteModalOpen(true);
@@ -235,15 +246,16 @@ export default function UsersPage() {
       });
 
       if (res.ok) {
-        showToast("삭제 완료");
+        showToast("사용자가 삭제되었습니다.");
         setIsDeleteModalOpen(false);
         setDeleteTarget(null);
         fetchData();
       } else {
-        showToast("삭제 실패", "error");
+        const errorData = await res.json();
+        showToast(errorData.error || "삭제 실패", "error");
       }
     } catch (error) {
-      showToast("삭제 실패", "error");
+      showToast("서버 오류로 삭제에 실패했습니다.", "error");
     }
   };
 
@@ -265,6 +277,7 @@ export default function UsersPage() {
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-8 pb-20">
+      {/* 1. Toast Notification */}
       {toast && (
         <div
           className={`fixed right-6 top-6 z-[11000] flex items-center gap-3 rounded-[22px] border border-white/10 px-5 py-4 shadow-[0_24px_50px_rgba(15,23,42,0.2)] backdrop-blur-2xl animate-in slide-in-from-right-8 duration-300 ${
@@ -278,7 +291,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* 상단 히어로 */}
+      {/* 2. 상단 히어로 섹션 (원본 디자인 100%) */}
       <section className="soft-scale-in">
         <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(8,15,30,0.96),rgba(11,18,36,0.88))] p-6 shadow-[0_28px_70px_rgba(2,6,23,0.18)] backdrop-blur-2xl md:p-8">
           <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),transparent_34%,transparent_72%,rgba(59,130,246,0.06))]" />
@@ -289,7 +302,7 @@ export default function UsersPage() {
 
           <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-400/15 bg-blue-500/10 px-3 py-1.5 text-[11px] font-semibold tracking-[0.18em] text-blue-200">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-400/15 bg-blue-500/10 px-3 py-1.5 text-[11px] font-semibold tracking-[0.18em] text-blue-200 uppercase">
                 <Users className="h-3.5 w-3.5" />
                 계정 관리
               </div>
@@ -331,7 +344,7 @@ export default function UsersPage() {
         </div>
       </section>
 
-      {/* 요약 카드 */}
+      {/* 3. 요약 카드 섹션 (원본 디자인 100%) */}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           {
@@ -389,7 +402,7 @@ export default function UsersPage() {
         })}
       </section>
 
-      {/* 검색 / 필터 */}
+      {/* 4. 검색 / 필터 섹션 */}
       <section className="fade-up rounded-[28px] border border-white/60 bg-white/80 p-4 shadow-[0_12px_30px_rgba(15,23,42,0.05)] backdrop-blur-xl">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="grid flex-1 gap-3 md:grid-cols-[minmax(0,1fr)_280px]">
@@ -429,7 +442,7 @@ export default function UsersPage() {
         </div>
       </section>
 
-      {/* 사용자 레지스트리 */}
+      {/* 5. 사용자 리스트 섹션 (원본 디자인 100%) */}
       <section className="fade-up overflow-hidden rounded-[30px] border border-slate-200/80 bg-white/95 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
         <div className="border-b border-slate-100 px-6 py-5">
           <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -442,15 +455,15 @@ export default function UsersPage() {
               </p>
             </div>
 
-            <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600">
+            <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600 tracking-widest uppercase">
               <Sparkles className="h-3.5 w-3.5" />
-              실시간 반영
+              실시간 동기화
             </div>
           </div>
         </div>
 
-        <div className="px-4 py-4 md:px-6 md:py-5">
-          <div className="hidden rounded-2xl bg-slate-50 px-5 py-3 text-[11px] font-bold tracking-[0.12em] text-slate-400 md:grid md:grid-cols-[minmax(320px,1.5fr)_160px_160px_160px] md:items-center md:gap-4">
+        <div className="px-4 py-4 md:px-6 md:py-5 overflow-x-auto scrollbar-hide">
+          <div className="hidden rounded-2xl bg-slate-50 px-5 py-3 text-[11px] font-bold tracking-[0.12em] text-slate-400 md:grid md:grid-cols-[minmax(320px,1.5fr)_160px_160px_160px] md:items-center md:gap-4 uppercase">
             <span>사용자 정보</span>
             <span>권한 그룹</span>
             <span>계정 상태</span>
@@ -476,13 +489,6 @@ export default function UsersPage() {
                 <p className="mt-2 text-sm text-slate-500">
                   검색 조건을 변경하거나 새 사용자를 추가해보세요.
                 </p>
-                <button
-                  onClick={() => openModal()}
-                  className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white transition-all hover:bg-blue-600"
-                >
-                  <UserPlus className="h-4 w-4" />
-                  새 사용자 추가
-                </button>
               </div>
             ) : (
               filteredUsers.map((user, index) => (
@@ -493,7 +499,7 @@ export default function UsersPage() {
                 >
                   <div className="grid gap-4 md:grid-cols-[minmax(320px,1.5fr)_160px_160px_160px] md:items-center">
                     <div className="flex items-start gap-4">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-[linear-gradient(135deg,#13233F_0%,#0B1730_100%)] text-2xl font-black text-white shadow-[0_12px_28px_rgba(37,99,235,0.18)]">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-[linear-gradient(135deg,#13233F_0%,#0B1730_100%)] text-2xl font-black text-white shadow-lg">
                         {user.name[0]}
                       </div>
 
@@ -502,77 +508,44 @@ export default function UsersPage() {
                           <h3 className="truncate text-[1.15rem] font-black tracking-[-0.04em] text-slate-900 transition-colors group-hover:text-blue-600">
                             {user.name}
                           </h3>
-
-                          <span className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-500">
-                            내부 ID {user.id.split("-")[0]}
+                          <span className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-1 text-[10px] font-bold text-slate-500 uppercase tracking-tighter">
+                            ID: {user.id.split("-")[0]}
                           </span>
                         </div>
 
                         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                          <div className="inline-flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
+                          <div className="inline-flex items-center gap-2 rounded-xl bg-slate-50/50 px-3 py-2 text-sm font-medium text-slate-600 border border-slate-100">
                             <Mail className="h-4 w-4 text-slate-400" />
                             <span className="truncate">{user.email}</span>
                           </div>
-
-                          <div className="inline-flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm font-medium text-slate-500">
+                          <div className="inline-flex items-center gap-2 rounded-xl bg-slate-50/50 px-3 py-2 text-sm font-medium text-slate-500 border border-slate-100">
                             <Phone className="h-4 w-4 text-slate-400" />
-                            <span className="truncate">
-                              {user.phone || "연락처 없음"}
-                            </span>
+                            <span className="truncate">{user.phone || "연락처 미등록"}</span>
                           </div>
-                        </div>
-
-                        <div className="mt-3 inline-flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500">
-                          <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
-                          생성일 {formatDate(user.created_at)}
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center md:justify-center">
-                      <span
-                        className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-black tracking-[0.08em] ${getRoleStyle(
-                          user.role_name
-                        )}`}
-                      >
+                      <span className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-[11px] font-black tracking-widest uppercase transition-all duration-300 ${getRoleStyle(user.role_name)}`}>
                         <ShieldCheck className="h-3.5 w-3.5" />
                         {user.role_name}
                       </span>
                     </div>
 
                     <div className="flex items-center md:justify-center">
-                      <div
-                        className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-black tracking-[0.08em] ${
-                          user.is_active
-                            ? "bg-emerald-50 text-emerald-600"
-                            : "bg-rose-50 text-rose-500"
-                        }`}
-                      >
-                        <div
-                          className={`h-1.5 w-1.5 rounded-full ${
-                            user.is_active
-                              ? "bg-emerald-500 animate-pulse"
-                              : "bg-rose-500"
-                          }`}
-                        />
-                        {user.is_active ? "활성" : "비활성"}
+                      <div className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-black tracking-[0.1em] ${user.is_active ? "bg-emerald-50 text-emerald-600 shadow-sm shadow-emerald-100" : "bg-rose-50 text-rose-500 shadow-sm shadow-rose-100"}`}>
+                        <div className={`h-1.5 w-1.5 rounded-full ${user.is_active ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+                        {user.is_active ? "ACTIVE" : "DISABLED"}
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => openModal(user)}
-                        className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-bold text-white transition-all hover:bg-blue-600 active:scale-[0.98]"
-                      >
+                    <div className="flex items-center justify-end gap-2 relative z-50">
+                      <button onClick={() => openModal(user)} className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-bold text-white transition-all hover:bg-blue-600 active:scale-95 shadow-md shadow-slate-200">
                         <Edit3 className="h-4 w-4" />
                         <span>수정</span>
                       </button>
-
-                      <button
-                        onClick={() => openDeleteModal(user)}
-                        className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-100 bg-white text-rose-300 transition-all hover:bg-rose-50 hover:text-rose-600 active:scale-95"
-                        aria-label={`${user.name} 삭제`}
-                      >
+                      <button onClick={() => openDeleteModal(user)} className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-100 bg-white text-rose-300 hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-95 shadow-sm">
                         <Trash2 className="h-4.5 w-4.5" />
                       </button>
                     </div>
@@ -584,258 +557,80 @@ export default function UsersPage() {
         </div>
       </section>
 
-      {/* 사용자 설정 모달 */}
+      {/* 6. 사용자 설정 모달 (디자인 100% 복원) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/45 p-6 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="relative max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-[34px] border border-white/10 bg-white shadow-[0_40px_90px_rgba(15,23,42,0.25)] animate-in zoom-in-95 duration-300">
+          <div className="relative max-h-[95vh] w-full max-w-4xl overflow-hidden rounded-[34px] border border-white/10 bg-white shadow-[0_40px_90px_rgba(15,23,42,0.25)] animate-in zoom-in-95 duration-300 flex flex-col">
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent" />
-
-            <div className="grid max-h-[90vh] overflow-hidden lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="custom-scrollbar overflow-y-auto p-8 md:p-10">
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="absolute right-6 top-6 flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition-all hover:bg-slate-100 hover:text-slate-900"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-
+            <div className="grid lg:grid-cols-[1.1fr_0.9fr] flex-1 overflow-hidden">
+              <div className="custom-scrollbar overflow-y-auto p-8 md:p-10 border-b lg:border-b-0 lg:border-r border-slate-100">
+                <button onClick={() => setIsModalOpen(false)} className="absolute right-6 top-6 flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition-all hover:bg-slate-100 hover:text-slate-900"><X size={24} /></button>
                 <div className="mb-8">
-                  <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-slate-500">
-                    <UserPlus className="h-3.5 w-3.5" />
-                    계정 정보 설정
-                  </div>
-
-                  <h2 className="mt-4 text-[2rem] font-black tracking-[-0.05em] text-slate-900">
-                    {selectedUser ? "사용자 수정" : "사용자 추가"}
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    기본 정보와 권한, 계정 상태를 설정합니다.
-                  </p>
+                  <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-slate-500 uppercase"><UserCog size={14} /> Profile Settings</div>
+                  <h2 className="mt-4 text-[2.2rem] font-black tracking-tighter text-slate-900">{selectedUser ? "사용자 정보 수정" : "새 사용자 추가"}</h2>
                 </div>
 
                 <form onSubmit={handleSave} className="space-y-6">
                   <div className="grid gap-5 md:grid-cols-2">
                     <div>
-                      <label className="mb-2 block text-sm font-semibold text-slate-600">
-                        이름
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={formData.name}
-                        onChange={(e) =>
-                          setFormData({ ...formData, name: e.target.value })
-                        }
-                        className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                        placeholder="예: 홍길동"
-                      />
+                      <label className="mb-2 block text-sm font-semibold text-slate-600 uppercase tracking-tighter">성함</label>
+                      <input required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-6 font-bold text-slate-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all placeholder:text-slate-300" placeholder="ex) 홍길동" />
                     </div>
-
                     <div>
-                      <label className="mb-2 block text-sm font-semibold text-slate-600">
-                        연락처
-                      </label>
-                      <div className="relative">
-                        <Smartphone className="pointer-events-none absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" />
-                        <input
-                          type="text"
-                          value={formData.phone}
-                          onChange={(e) =>
-                            setFormData({ ...formData, phone: e.target.value })
-                          }
-                          className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-5 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                          placeholder="010-0000-0000"
-                        />
-                      </div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-600 uppercase tracking-tighter">연락처</label>
+                      <div className="relative"><Smartphone className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" /><input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-5 text-sm font-semibold text-slate-900 focus:bg-white transition-all" placeholder="ex) 010-0000-0000" /></div>
                     </div>
                   </div>
 
                   <div className="grid gap-5 md:grid-cols-2">
                     <div>
-                      <label className="mb-2 block text-sm font-semibold text-slate-600">
-                        이메일
-                      </label>
-                      <div className="relative">
-                        <Mail className="pointer-events-none absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" />
-                        <input
-                          type="email"
-                          required
-                          value={formData.email}
-                          onChange={(e) =>
-                            setFormData({ ...formData, email: e.target.value })
-                          }
-                          className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-5 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                          placeholder="example@company.com"
-                        />
-                      </div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-600 uppercase tracking-tighter">이메일 계정</label>
+                      <div className="relative"><Mail className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" /><input required type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-5 text-sm font-semibold text-slate-900 focus:bg-white transition-all" placeholder="ex) user@company.com" /></div>
                     </div>
-
                     <div>
-                      <label className="mb-2 block text-sm font-semibold text-slate-600">
-                        비밀번호
-                      </label>
-                      <div className="relative">
-                        <Lock className="pointer-events-none absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" />
-                        <input
-                          type="password"
-                          required={!selectedUser}
-                          value={formData.password}
-                          onChange={(e) =>
-                            setFormData({ ...formData, password: e.target.value })
-                          }
-                          className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-5 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                          placeholder={
-                            selectedUser ? "비워두면 기존 비밀번호 유지" : "비밀번호 입력"
-                          }
-                        />
-                      </div>
-                      {selectedUser && (
-                        <p className="mt-2 text-xs font-medium text-slate-400">
-                          비워두면 기존 비밀번호를 유지합니다.
-                        </p>
-                      )}
+                      <label className="mb-2 block text-sm font-semibold text-slate-600 uppercase tracking-tighter">비밀번호</label>
+                      <div className="relative"><Lock className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" /><input type="password" required={!selectedUser} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-5 text-sm font-semibold text-slate-900 focus:bg-white transition-all" placeholder={selectedUser ? "변경 시에만 입력" : "비밀번호 설정"} /></div>
                     </div>
                   </div>
 
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <div>
-                      <label className="mb-2 block text-sm font-semibold text-slate-600">
-                        권한 그룹
-                      </label>
-                      <div className="relative">
-                        <ShieldCheck className="pointer-events-none absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" />
-                        <select
-                          value={formData.role_id}
-                          onChange={(e) =>
-                            setFormData({ ...formData, role_id: e.target.value })
-                          }
-                          className="h-14 w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-12 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                        >
-                          {roles.map((role) => (
-                            <option key={role.id} value={role.id}>
-                              {role.name}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown className="pointer-events-none absolute right-5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-300" />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-sm font-semibold text-slate-600">
-                        계정 상태
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setFormData({
-                            ...formData,
-                            is_active: !formData.is_active,
-                          })
-                        }
-                        className={`flex h-14 w-full items-center justify-between rounded-2xl border px-5 transition-all ${
-                          formData.is_active
-                            ? "border-blue-200 bg-blue-50 text-blue-600 shadow-sm shadow-blue-50"
-                            : "border-slate-200 bg-slate-50 text-slate-500"
-                        }`}
-                      >
-                        <span className="text-sm font-bold">
-                          {formData.is_active ? "계정 활성" : "계정 비활성"}
-                        </span>
-                        {formData.is_active ? (
-                          <CheckCircle2 className="h-5 w-5 animate-pulse" />
-                        ) : (
-                          <Lock className="h-5 w-5" />
-                        )}
-                      </button>
-                      <p className="mt-2 text-xs font-medium text-slate-400">
-                        {formData.is_active
-                          ? "로그인 및 시스템 접근이 가능한 상태입니다."
-                          : "로그인과 시스템 접근이 차단된 상태입니다."}
-                      </p>
-                    </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-600 uppercase tracking-tighter">권한 그룹 지정</label>
+                    <div className="relative"><ShieldCheck className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" /><select value={formData.role_id} onChange={(e) => setFormData({ ...formData, role_id: e.target.value })} className="h-14 w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-12 font-bold text-slate-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all">{roles.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}</select><ChevronDown className="absolute right-5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /></div>
                   </div>
 
-                  <div className="flex gap-3 pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setIsModalOpen(false)}
-                      className="flex-1 rounded-2xl border border-slate-200 bg-white py-4 text-sm font-bold text-slate-500 transition-all hover:bg-slate-50"
-                    >
-                      취소
-                    </button>
-                    <button
-                      type="submit"
-                      className="flex-[1.3] rounded-2xl bg-gradient-to-r from-slate-900 to-blue-600 py-4 text-sm font-black text-white shadow-[0_18px_36px_rgba(15,23,42,0.18)] transition-all hover:-translate-y-0.5 active:scale-[0.98]"
-                    >
-                      저장
-                    </button>
+                  <button type="button" onClick={() => setFormData({ ...formData, is_active: !formData.is_active })} className={`w-full h-20 flex items-center justify-between px-8 rounded-[24px] border-2 transition-all ${formData.is_active ? "bg-blue-50/50 border-blue-200 text-blue-700 shadow-sm" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+                    <div className="flex flex-col items-start"><span className="font-black text-lg">{formData.is_active ? "ACTIVE" : "DISABLED"}</span><span className="text-xs font-bold opacity-60 uppercase tracking-widest">{formData.is_active ? "현재 시스템 이용 가능" : "시스템 접근 권한 없음"}</span></div>
+                    <div className={`h-8 w-14 rounded-full relative p-1.5 transition-colors ${formData.is_active ? "bg-blue-600" : "bg-slate-300"}`}><div className={`h-5 w-5 bg-white rounded-full transition-transform duration-300 ${formData.is_active ? "translate-x-6" : "translate-x-0"}`} /></div>
+                  </button>
+
+                  <div className="flex gap-4 pt-4">
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4.5 rounded-2xl font-bold text-slate-400 hover:bg-slate-50 transition-all tracking-widest uppercase">삭제</button>
+                    <button type="submit" className="flex-[2] py-4.5 rounded-2xl bg-slate-900 text-white font-black text-lg active:scale-95 transition-all shadow-xl shadow-slate-900/20 tracking-widest uppercase">저장</button>
                   </div>
                 </form>
               </div>
 
-              <div className="custom-scrollbar overflow-y-auto border-t border-slate-100 bg-gradient-to-br from-slate-50 to-white p-8 lg:border-l lg:border-t-0 lg:p-10">
-                <div className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_14px_30px_rgba(15,23,42,0.05)]">
-                  <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-blue-600">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    사용자 미리보기
-                  </div>
-
-                  <div className="rounded-[26px] border border-slate-200/80 bg-gradient-to-br from-white to-slate-50 px-5 py-5">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-[linear-gradient(135deg,#13233F_0%,#0B1730_100%)] text-2xl font-black text-white shadow-[0_12px_28px_rgba(37,99,235,0.18)]">
-                        {(formData.name || "사").slice(0, 1)}
+              {/* 우측 미리보기 (원본 디자인 포인트 100%) */}
+              <div className="custom-scrollbar overflow-y-auto bg-slate-50/50 p-8 lg:p-12 flex flex-col justify-center items-center text-center">
+                <div className="w-full max-w-[320px] space-y-6">
+                  <div className="inline-flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]"><Sparkles size={14} className="text-blue-500" /> Identity Preview</div>
+                  <div className="bg-white border border-slate-200 rounded-[38px] p-10 shadow-2xl shadow-slate-200/50 text-left relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full -mr-10 -mt-10" />
+                    <div className="relative flex flex-col items-center text-center">
+                      <div className="h-24 w-24 flex items-center justify-center bg-slate-900 text-white text-3xl font-black rounded-[30px] shadow-2xl mb-6 transform transition-transform group-hover:scale-105 animate-pulse">
+                        {(formData.name || "U")[0]}
                       </div>
-
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[1.15rem] font-black tracking-[-0.04em] text-slate-900">
-                          {formData.name || "이름"}
-                        </p>
-                        <p className="mt-2 truncate rounded-xl bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-600">
-                          {roles.find((role) => role.id === formData.role_id)?.name ||
-                            "권한 그룹"}
-                        </p>
-                      </div>
+                      <h4 className="text-2xl font-black text-slate-900 tracking-tighter truncate w-full">{formData.name || "사용자 이름"}</h4>
+                      <p className="mt-2 inline-flex rounded-xl bg-blue-50 px-4 py-1.5 text-xs font-black text-blue-600 tracking-widest uppercase border border-blue-100">
+                        {roles.find(r => r.id === formData.role_id)?.name || "그룹 미지정"}
+                      </p>
                     </div>
-
-                    <div className="mt-5 grid gap-3">
-                      <div className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3">
-                        <Mail className="h-4.5 w-4.5 text-slate-400" />
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-slate-400">
-                            이메일
-                          </p>
-                          <p className="truncate text-sm font-bold text-slate-800">
-                            {formData.email || "-"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3">
-                        <Phone className="h-4.5 w-4.5 text-slate-400" />
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-slate-400">
-                            연락처
-                          </p>
-                          <p className="truncate text-sm font-bold text-slate-800">
-                            {formData.phone || "-"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3">
-                        <Fingerprint className="h-4.5 w-4.5 text-slate-400" />
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-slate-400">
-                            계정 상태
-                          </p>
-                          <p className="truncate text-sm font-bold text-slate-800">
-                            {formData.is_active ? "활성" : "비활성"}
-                          </p>
-                        </div>
-                      </div>
+                    <div className="mt-10 space-y-4 pt-8 border-t border-slate-100">
+                      <div className="flex items-center gap-3"><Mail size={16} className="text-slate-300" /><span className="text-sm font-bold text-slate-700 truncate">{formData.email || "Email Address"}</span></div>
+                      <div className="flex items-center gap-3"><Phone size={16} className="text-slate-300" /><span className="text-sm font-bold text-slate-700">{formData.phone || "Contact Info"}</span></div>
                     </div>
                   </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed font-semibold px-4">정보를 저장하면 즉시 데이터베이스에 반영되며 해당 사용자의 접근 권한이 갱신됩니다.</p>
                 </div>
               </div>
             </div>
@@ -843,56 +638,39 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* 삭제 모달 */}
+      {/* 삭제 확인 모달 (디자인 100% 복원) */}
       {isDeleteModalOpen && (
-        <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-950/45 p-6 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-white p-10 shadow-[0_40px_90px_rgba(15,23,42,0.25)] text-center animate-in zoom-in-95 duration-300">
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-[26px] bg-rose-50 text-rose-500 shadow-inner">
-              <AlertTriangle className="h-9 w-9" />
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-950/65 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="w-full max-w-md rounded-[40px] border border-white/10 bg-white p-12 shadow-[0_40px_100px_rgba(0,0,0,0.3)] text-center animate-in zoom-in-95 duration-300">
+            <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-[32px] bg-rose-50 text-rose-500 shadow-inner">
+              <AlertTriangle size={48} />
             </div>
 
-            <h3 className="text-[1.8rem] font-black tracking-[-0.05em] text-slate-900">
-              사용자 삭제
-            </h3>
-            <p className="mt-3 text-sm leading-7 text-slate-500">
-              <span className="font-bold text-slate-800">
-                {deleteTarget?.name || "선택된 사용자"}
-              </span>{" "}
-              계정을 삭제하시겠습니까?
+            <h3 className="text-[2rem] font-black tracking-tighter text-slate-900">영구 삭제</h3>
+            <p className="mt-4 text-[15px] leading-relaxed text-slate-500">
+              정말 <span className="font-bold text-slate-800 underline underline-offset-4 decoration-rose-200">[{deleteTarget?.name}]</span> 계정을 삭제할까요?
               <br />
-              삭제 후에는 복구할 수 없습니다.
+              삭제된 데이터는 <span className="text-rose-600 font-bold">복구가 불가능</span>합니다.
             </p>
 
-            <div className="mt-8 flex flex-col gap-3">
-              <button
-                onClick={confirmDelete}
-                className="w-full rounded-2xl bg-rose-600 py-4 text-sm font-black text-white shadow-[0_16px_32px_rgba(225,29,72,0.18)] transition-all hover:bg-rose-700 active:scale-[0.98]"
-              >
-                삭제
-              </button>
-              <button
-                onClick={() => {
-                  setIsDeleteModalOpen(false);
-                  setDeleteTarget(null);
-                }}
-                className="w-full rounded-2xl border border-slate-200 bg-white py-4 text-sm font-bold text-slate-500 transition-all hover:bg-slate-50"
-              >
-                취소
-              </button>
+            <div className="mt-10 flex flex-col gap-4">
+              <button onClick={confirmDelete} className="w-full rounded-[20px] bg-rose-600 py-5 text-base font-black text-white shadow-xl shadow-rose-200 active:scale-[0.98] transition-all">네, 지금 삭제합니다</button>
+              <button onClick={() => { setIsDeleteModalOpen(false); setDeleteTarget(null); }} className="w-full rounded-[20px] bg-slate-100 py-5 text-base font-black text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-all">아니오, 취소합니다</button>
             </div>
           </div>
         </div>
       )}
 
       <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(0, 0, 0, 0.05);
-          border-radius: 10px;
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.05); border-radius: 10px; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes soft-scale-in { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+        .soft-scale-in { animation: soft-scale-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-up { animation: fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .h-18 { height: 4.5rem; }
       `}</style>
     </div>
   );

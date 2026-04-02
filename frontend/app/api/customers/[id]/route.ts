@@ -6,33 +6,55 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// [GET] 고객 조회 (검색 및 필터링 반영)
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const search = searchParams.get("search") || "";
-  const tm_id = searchParams.get("tm_id") || "all";
-  const consult_status = searchParams.get("consult_status") || "all";
+// 1. 개별 고객 정보 수정 ( PATCH )
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> } // Promise 타입으로 명시
+) {
+  try {
+    // 💡 Next.js 15 필수: params를 await로 기다려야 합니다.
+    const { id } = await params; 
+    const body = await request.json();
 
-  let query = supabase.from("customers").select("*");
+    const { data, error } = await supabase
+      .from("customers")
+      .update(body)
+      .eq("id", id)
+      .select();
 
-  if (search) query = query.or(`company_name.ilike.%${search}%,customer_name.ilike.%${search}%`);
-  if (tm_id !== "all") query = query.eq("tm_id", tm_id);
-  if (consult_status !== "all") query = query.eq("consult_status", consult_status);
-
-  const { data, error } = await query.order("created_at", { ascending: false });
-  return NextResponse.json(data || []);
+    if (error) throw error;
+    return NextResponse.json(data[0]);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
 
-// [PATCH] 일괄 담당자 배정 기능
-export async function PATCH(request: Request) {
-  const { ids, type, assignee_id } = await request.json();
-  const column = type === 'TM' ? 'tm_id' : 'sales_id';
+// 2. 개별 고객 삭제 ( DELETE )
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> } // Promise 타입으로 명시
+) {
+  try {
+    // 💡 에러 발생 지점 수정: await params 추가
+    const { id } = await params;
 
-  const { error } = await supabase
-    .from("customers")
-    .update({ [column]: assignee_id })
-    .in("id", ids);
+    if (!id) {
+      return NextResponse.json({ error: "ID가 누락되었습니다." }, { status: 400 });
+    }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true });
+    const { error } = await supabase
+      .from("customers")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Supabase Delete Error:", error);
+      throw error;
+    }
+
+    return NextResponse.json({ success: true, message: "고객 정보가 삭제되었습니다." });
+  } catch (error: any) {
+    console.error("API DELETE Error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }

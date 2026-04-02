@@ -136,6 +136,10 @@ export default function CustomersPage() {
     return "bg-blue-50 text-blue-600 border-blue-100";
   }, []);
 
+  const formatCommission = useCallback((value?: number) => {
+    return `₩${Number(value || 0).toLocaleString()}`;
+  }, []);
+
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -309,20 +313,34 @@ export default function CustomersPage() {
     if (!deleteTarget) return;
 
     try {
-      const res = await fetch(`/api/customers/${deleteTarget.id}`, {
+      const res = await fetch(`/api/customers/${encodeURIComponent(deleteTarget.id)}`, {
         method: "DELETE",
+        headers: {
+          Accept: "application/json",
+        },
       });
 
-      if (res.ok) {
-        setIsDeleteModalOpen(false);
-        setDeleteTarget(null);
-        showToast("고객이 삭제되었습니다.");
-        fetchData();
-      } else {
-        showToast("삭제 실패", "error");
+      let errorMessage = "삭제 실패";
+      const contentType = res.headers.get("content-type") || "";
+
+      if (!res.ok) {
+        if (contentType.includes("application/json")) {
+          const data = await res.json().catch(() => null);
+          errorMessage = data?.message || data?.error || errorMessage;
+        } else {
+          const text = await res.text().catch(() => "");
+          if (text) errorMessage = text;
+        }
+        throw new Error(errorMessage);
       }
+
+      setIsDeleteModalOpen(false);
+      setDeleteTarget(null);
+      showToast("고객이 삭제되었습니다.");
+      await fetchData();
     } catch (error) {
-      showToast("삭제 실패", "error");
+      const message = error instanceof Error ? error.message : "삭제 실패";
+      showToast(message, "error");
     }
   };
 
@@ -330,11 +348,10 @@ export default function CustomersPage() {
     <div className="mx-auto max-w-[1600px] space-y-8 pb-20">
       {toast && (
         <div
-          className={`fixed right-6 top-6 z-[11000] flex items-center gap-3 rounded-[22px] border border-white/10 px-5 py-4 shadow-[0_24px_50px_rgba(15,23,42,0.2)] backdrop-blur-2xl animate-in slide-in-from-right-8 duration-300 ${
-            toast.type === "success"
+          className={`fixed right-6 top-6 z-[11000] flex items-center gap-3 rounded-[22px] border border-white/10 px-5 py-4 shadow-[0_24px_50px_rgba(15,23,42,0.2)] backdrop-blur-2xl animate-in slide-in-from-right-8 duration-300 ${toast.type === "success"
               ? "bg-slate-900/90 text-white"
               : "bg-rose-600/90 text-white"
-          }`}
+            }`}
         >
           <div className="h-2.5 w-2.5 rounded-full bg-current animate-pulse" />
           <p className="text-sm font-bold tracking-[-0.02em]">{toast.message}</p>
@@ -375,9 +392,8 @@ export default function CustomersPage() {
                 aria-label="새로고침"
               >
                 <RotateCw
-                  className={`h-5 w-5 transition-transform duration-500 ${
-                    isLoading ? "animate-spin" : "group-hover:rotate-180"
-                  }`}
+                  className={`h-5 w-5 transition-transform duration-500 ${isLoading ? "animate-spin" : "group-hover:rotate-180"
+                    }`}
                 />
               </button>
 
@@ -707,8 +723,8 @@ export default function CustomersPage() {
                       </p>
                     </div>
                   ) : (
-                    <div className="min-w-[1580px] space-y-3">
-                      <div className="grid items-center gap-3 rounded-2xl bg-slate-50 px-5 py-3 text-[11px] font-bold tracking-[0.12em] text-slate-400 md:grid-cols-[52px_120px_minmax(240px,1.25fr)_120px_160px_minmax(240px,1fr)_110px_120px_140px_120px_140px]">
+                    <div className="min-w-[1660px] space-y-3">
+                      <div className="grid items-center gap-3 rounded-2xl bg-slate-50 px-5 py-3 text-[11px] font-bold tracking-[0.12em] text-slate-400 md:grid-cols-[52px_120px_minmax(240px,1.25fr)_120px_160px_minmax(240px,1fr)_110px_120px_140px_120px_120px_72px]">
                         <span className="text-center">선택</span>
                         <span className="text-center">상담일자</span>
                         <span>업체 정보</span>
@@ -719,20 +735,20 @@ export default function CustomersPage() {
                         <span className="text-center">담당 TM</span>
                         <span className="text-center">상담상태</span>
                         <span className="text-center">영업담당</span>
-                        <span className="text-right">정산금액</span>
+                        <span className="text-right">영업수당</span>
+                        <span className="text-center">삭제</span>
                       </div>
 
                       {paginatedData.map((c, index) => (
                         <div
                           key={c.id}
-                          className={`group rounded-[24px] border px-5 py-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)] ${
-                            selectedIds.includes(c.id)
+                          className={`group rounded-[24px] border px-5 py-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)] ${selectedIds.includes(c.id)
                               ? "border-blue-200 bg-blue-50/40"
                               : "border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80"
-                          }`}
+                            }`}
                           style={{ animationDelay: `${index * 50}ms` }}
                         >
-                          <div className="grid items-center gap-3 md:grid-cols-[52px_120px_minmax(240px,1.25fr)_120px_160px_minmax(240px,1fr)_110px_120px_140px_120px_140px]">
+                          <div className="grid items-center gap-3 md:grid-cols-[52px_120px_minmax(240px,1.25fr)_120px_160px_minmax(240px,1fr)_110px_120px_140px_120px_120px_72px]">
                             <div
                               className="flex justify-center"
                               onClick={(e) => e.stopPropagation()}
@@ -826,15 +842,17 @@ export default function CustomersPage() {
                               {getUserNameById(c.sales_id)}
                             </button>
 
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => openModal(c)}
-                                className="text-right text-sm font-black text-blue-700 tabular-nums"
-                              >
-                                ₩{(c.sales_commission || 0).toLocaleString()}
-                              </button>
+                            <button
+                              onClick={() => openModal(c)}
+                              className="truncate text-right text-sm font-black text-blue-700 tabular-nums"
+                              title={formatCommission(c.sales_commission)}
+                            >
+                              {formatCommission(c.sales_commission)}
+                            </button>
 
+                            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
                               <button
+                                type="button"
                                 onClick={() => openDeleteModal(c)}
                                 className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-rose-100 bg-white text-rose-300 transition-all hover:bg-rose-50 hover:text-rose-600"
                                 aria-label={`${c.company_name} 삭제`}
@@ -924,11 +942,13 @@ export default function CustomersPage() {
                             ₩{(c.sales_commission || 0).toLocaleString()}
                           </span>
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               openDeleteModal(c);
                             }}
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-rose-100 bg-white text-rose-300"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-rose-100 bg-white text-rose-300 transition-all hover:bg-rose-50 hover:text-rose-600"
+                            aria-label={`${c.company_name} 삭제`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -1273,7 +1293,7 @@ export default function CustomersPage() {
 
                       <div>
                         <label className="mb-2 block text-sm font-semibold text-violet-700">
-                          정산 수수료
+                          영업 수수료
                         </label>
                         <div className="relative">
                           <Wallet className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-violet-500" />
@@ -1363,12 +1383,14 @@ export default function CustomersPage() {
 
             <div className="mt-8 flex flex-col gap-3">
               <button
+                type="button"
                 onClick={confirmDelete}
                 className="w-full rounded-2xl bg-rose-600 py-4 text-sm font-black text-white shadow-[0_16px_32px_rgba(225,29,72,0.18)] transition-all hover:bg-rose-700 active:scale-[0.98]"
               >
                 삭제
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setIsDeleteModalOpen(false);
                   setDeleteTarget(null);

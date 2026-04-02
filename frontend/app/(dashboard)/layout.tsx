@@ -16,6 +16,10 @@ export default function DashboardLayout({
 
   useEffect(() => {
     document.body.style.overflow = isSidebarOpen ? "hidden" : "unset";
+
+    return () => {
+      document.body.style.overflow = "unset";
+    };
   }, [isSidebarOpen]);
 
   const confirmLogout = () => {
@@ -26,6 +30,14 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-screen overflow-hidden bg-[#F8FAFC]">
+      {/* 데스크탑 고정 사이드바 */}
+      <div className="hidden lg:block lg:w-72 lg:shrink-0">
+        <div className="sticky top-0 h-screen">
+          <AdminSidebar onLogoutOpen={() => setIsLogoutModalOpen(true)} />
+        </div>
+      </div>
+
+      {/* 모바일 오버레이 */}
       {isSidebarOpen && (
         <div
           className="fixed inset-0 z-[60] bg-slate-950/40 backdrop-blur-sm lg:hidden animate-in fade-in duration-300"
@@ -33,15 +45,16 @@ export default function DashboardLayout({
         />
       )}
 
-      <aside
-        className={`
-          fixed inset-y-0 left-0 z-[70] h-screen w-72 transform transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] lg:relative lg:translate-x-0
-          ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
-        `}
+      {/* 모바일 드로어 사이드바 */}
+      <div
+        className={`fixed inset-y-0 left-0 z-[70] h-screen w-72 transform transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] lg:hidden ${
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
       >
         <AdminSidebar onLogoutOpen={() => setIsLogoutModalOpen(true)} />
-      </aside>
+      </div>
 
+      {/* 메인 콘텐츠 */}
       <div className="flex min-w-0 flex-1 flex-col h-screen overflow-hidden">
         <div className="sticky top-0 z-50 shrink-0 bg-transparent px-3 pt-3 md:px-5 md:pt-4">
           <header className="relative overflow-hidden rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(8,14,28,0.86)_0%,rgba(7,12,24,0.8)_100%)] shadow-[0_18px_40px_rgba(2,6,23,0.18)] backdrop-blur-2xl">
@@ -71,6 +84,7 @@ export default function DashboardLayout({
         </main>
       </div>
 
+      {/* 로그아웃 모달 */}
       {isLogoutModalOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300">
           <div className="w-[calc(100%-2rem)] max-w-sm rounded-[2.5rem] border border-white/10 bg-[#0F172A] p-8 shadow-2xl animate-in zoom-in-95 duration-300">
@@ -87,6 +101,7 @@ export default function DashboardLayout({
                 인증 화면으로 돌아갑니다.
               </p>
             </div>
+
             <div className="mt-8 flex gap-3">
               <button
                 onClick={() => setIsLogoutModalOpen(false)}

@@ -6,32 +6,21 @@ import {
   Search,
   RotateCw,
   Trash2,
-  Edit3,
   X,
   ChevronLeft,
   ChevronRight,
   Layers,
   Sparkles,
   AlertTriangle,
-  Smartphone,
-  FileSpreadsheet,
-  Plus,
-  Phone,
-  MapPin,
-  Building,
-  CalendarDays,
   Wallet,
   Mic,
-  Activity,
   Download,
-  ListOrdered,
   UserCheck,
-  CheckCircle2,
-  UserCircle,
   Upload,
   Filter,
   Users,
   BriefcaseBusiness,
+  CalendarDays,
 } from "lucide-react";
 
 interface Customer {
@@ -126,19 +115,6 @@ export default function CustomersPage() {
   const formatDate = useCallback((val?: string) => {
     if (!val) return "-";
     return val.split("T")[0].replace(/-/g, ".");
-  }, []);
-
-  const formatDateTime = useCallback((val?: string) => {
-    if (!val) return "-";
-    const normalized = val.includes("T") ? val : val.replace(" ", "T");
-    const date = new Date(normalized);
-    if (Number.isNaN(date.getTime())) return val;
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const dd = String(date.getDate()).padStart(2, "0");
-    const hh = String(date.getHours()).padStart(2, "0");
-    const mi = String(date.getMinutes()).padStart(2, "0");
-    return `${yyyy}. ${mm}. ${dd} ${hh}:${mi}`;
   }, []);
 
   const getUserNameById = useCallback(
@@ -252,10 +228,12 @@ export default function CustomersPage() {
 
   const handleBulkAssign = async (type: "TM" | "SALES") => {
     const assigneeId = type === "TM" ? assignTmId : assignSalesId;
-    if (!assigneeId)
+    if (!assigneeId) {
       return showToast("배정할 담당자를 선택해주세요.", "error");
-    if (selectedIds.length === 0)
+    }
+    if (selectedIds.length === 0) {
       return showToast("고객을 먼저 선택해주세요.", "error");
+    }
 
     try {
       const res = await fetch("/api/customers", {
@@ -492,31 +470,31 @@ export default function CustomersPage() {
 
       {/* 통합 필터 / 배정 */}
       <section className="fade-up rounded-[28px] border border-white/60 bg-white/80 p-4 shadow-[0_12px_30px_rgba(15,23,42,0.05)] backdrop-blur-xl">
-        <div className="grid gap-3 xl:grid-cols-[180px_minmax(0,1fr)_260px]">
-          <div className="relative">
+        <div className="grid items-start gap-3 xl:grid-cols-[180px_minmax(0,1fr)_260px]">
+          <div className="relative self-start">
             <Filter className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" />
             <select
               value={filters.date_type}
               onChange={(e) =>
                 setFilters({ ...filters, date_type: e.target.value })
               }
-              className="w-full appearance-none rounded-[20px] border border-slate-200/80 bg-slate-50/80 py-4 pl-12 pr-12 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              className="h-14 w-full appearance-none rounded-[20px] border border-slate-200/80 bg-slate-50/80 py-0 pl-12 pr-12 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
             >
               <option>접수일</option>
               <option>상담일</option>
             </select>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-[140px_auto_140px_minmax(0,1fr)]">
+          <div className="grid items-start gap-3 md:grid-cols-[140px_auto_140px_minmax(0,1fr)]">
             <input
               type="date"
               value={filters.date_from}
               onChange={(e) =>
                 setFilters({ ...filters, date_from: e.target.value })
               }
-              className="rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-4 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
             />
-            <div className="flex items-center justify-center text-slate-300 font-black">
+            <div className="flex h-14 items-center justify-center text-slate-300 font-black">
               ~
             </div>
             <input
@@ -525,9 +503,9 @@ export default function CustomersPage() {
               onChange={(e) =>
                 setFilters({ ...filters, date_to: e.target.value })
               }
-              className="rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-4 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
             />
-            <div className="relative group">
+            <div className="relative self-start group">
               <Search className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300 transition-colors group-focus-within:text-blue-600" />
               <input
                 value={filters.search}
@@ -535,17 +513,17 @@ export default function CustomersPage() {
                   setFilters({ ...filters, search: e.target.value })
                 }
                 placeholder="업체명, 대표자, 연락처 검색"
-                className="w-full rounded-[20px] border border-slate-200/80 bg-slate-50/80 py-4 pl-12 pr-5 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400"
+                className="h-14 w-full rounded-[20px] border border-slate-200/80 bg-slate-50/80 py-0 pl-12 pr-5 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400"
               />
             </div>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+          <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-1">
             <div className="flex gap-2">
               <select
                 value={assignTmId}
                 onChange={(e) => setAssignTmId(e.target.value)}
-                className="min-w-0 flex-1 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-4 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                className="h-14 min-w-0 flex-1 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
               >
                 <option value="">TM 선택</option>
                 {users
@@ -558,7 +536,7 @@ export default function CustomersPage() {
               </select>
               <button
                 onClick={() => handleBulkAssign("TM")}
-                className="rounded-[20px] bg-slate-900 px-4 py-4 text-sm font-black text-white transition-all hover:bg-blue-600 active:scale-[0.98]"
+                className="h-14 rounded-[20px] bg-slate-900 px-4 text-sm font-black text-white transition-all hover:bg-blue-600 active:scale-[0.98]"
               >
                 TM 배정
               </button>
@@ -568,7 +546,7 @@ export default function CustomersPage() {
               <select
                 value={assignSalesId}
                 onChange={(e) => setAssignSalesId(e.target.value)}
-                className="min-w-0 flex-1 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-4 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-violet-300 focus:bg-white focus:ring-4 focus:ring-violet-500/10"
+                className="h-14 min-w-0 flex-1 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-violet-300 focus:bg-white focus:ring-4 focus:ring-violet-500/10"
               >
                 <option value="">영업사원 선택</option>
                 {users
@@ -581,7 +559,7 @@ export default function CustomersPage() {
               </select>
               <button
                 onClick={() => handleBulkAssign("SALES")}
-                className="rounded-[20px] bg-slate-900 px-4 py-4 text-sm font-black text-white transition-all hover:bg-violet-600 active:scale-[0.98]"
+                className="h-14 rounded-[20px] bg-slate-900 px-4 text-sm font-black text-white transition-all hover:bg-violet-600 active:scale-[0.98]"
               >
                 영업 배정
               </button>
@@ -593,7 +571,7 @@ export default function CustomersPage() {
           <select
             value={filters.tm_id}
             onChange={(e) => setFilters({ ...filters, tm_id: e.target.value })}
-            className="rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-4 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
           >
             <option value="all">담당 TM 전체</option>
             {users
@@ -610,7 +588,7 @@ export default function CustomersPage() {
             onChange={(e) =>
               setFilters({ ...filters, consult_status: e.target.value })
             }
-            className="rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-4 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
           >
             <option value="all">상담 상태 전체</option>
             {consultCodes.map((c) => (
@@ -625,7 +603,7 @@ export default function CustomersPage() {
             onChange={(e) =>
               setFilters({ ...filters, sales_id: e.target.value })
             }
-            className="rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-4 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-violet-300 focus:bg-white focus:ring-4 focus:ring-violet-500/10"
+            className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-violet-300 focus:bg-white focus:ring-4 focus:ring-violet-500/10"
           >
             <option value="all">영업자 전체</option>
             {users
@@ -642,7 +620,7 @@ export default function CustomersPage() {
             onChange={(e) =>
               setFilters({ ...filters, sales_status: e.target.value })
             }
-            className="rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-4 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-violet-300 focus:bg-white focus:ring-4 focus:ring-violet-500/10"
+            className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-violet-300 focus:bg-white focus:ring-4 focus:ring-violet-500/10"
           >
             <option value="all">영업 상태 전체</option>
             {salesCodes.map((s) => (
@@ -654,12 +632,12 @@ export default function CustomersPage() {
 
           <button
             onClick={() => setFilters(INITIAL_FILTERS)}
-            className="rounded-[20px] border border-slate-200 bg-white px-5 py-4 text-sm font-bold text-slate-500 transition-all hover:bg-slate-50"
+            className="h-14 rounded-[20px] border border-slate-200 bg-white px-5 text-sm font-bold text-slate-500 transition-all hover:bg-slate-50"
           >
             초기화
           </button>
 
-          <div className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600">
+          <div className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-slate-100 px-4 text-sm font-semibold text-slate-600">
             <Sparkles className="h-4 w-4" />
             {selectedCount > 0 ? `${selectedCount}건 선택됨` : resultSummary}
           </div>
@@ -704,20 +682,6 @@ export default function CustomersPage() {
         </div>
 
         <div className="px-4 py-4 md:px-6 md:py-5">
-          <div className="hidden rounded-2xl bg-slate-50 px-5 py-3 text-[11px] font-bold tracking-[0.12em] text-slate-400 md:grid md:grid-cols-[52px_120px_minmax(220px,1.2fr)_120px_160px_minmax(220px,1fr)_110px_120px_130px_120px_130px] md:items-center md:gap-3">
-            <span className="text-center">선택</span>
-            <span className="text-center">상담일자</span>
-            <span>업체 정보</span>
-            <span className="text-center">대표자명</span>
-            <span className="text-center">핸드폰</span>
-            <span>주소</span>
-            <span className="text-center">접수일</span>
-            <span className="text-center">담당 TM</span>
-            <span className="text-center">상담상태</span>
-            <span className="text-center">영업담당</span>
-            <span className="text-right">정산금액</span>
-          </div>
-
           <div className="mt-3 space-y-3">
             {isLoading ? (
               [1, 2, 3, 4].map((i) => (
@@ -729,7 +693,7 @@ export default function CustomersPage() {
             ) : (
               <>
                 {/* Desktop */}
-                <div className="hidden md:block space-y-3">
+                <div className="hidden md:block w-full overflow-x-auto">
                   {paginatedData.length === 0 ? (
                     <div className="rounded-[26px] border border-dashed border-slate-200 bg-slate-50/80 px-6 py-16 text-center">
                       <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
@@ -743,129 +707,145 @@ export default function CustomersPage() {
                       </p>
                     </div>
                   ) : (
-                    paginatedData.map((c, index) => (
-                      <div
-                        key={c.id}
-                        className={`group rounded-[24px] border px-5 py-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)] ${
-                          selectedIds.includes(c.id)
-                            ? "border-blue-200 bg-blue-50/40"
-                            : "border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80"
-                        }`}
-                        style={{ animationDelay: `${index * 50}ms` }}
-                      >
-                        <div className="grid items-center gap-3 md:grid-cols-[52px_120px_minmax(220px,1.2fr)_120px_160px_minmax(220px,1fr)_110px_120px_130px_120px_130px]">
-                          <div
-                            className="flex justify-center"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedIds.includes(c.id)}
-                              onChange={() => toggleSelect(c.id)}
-                              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                            />
-                          </div>
+                    <div className="min-w-[1580px] space-y-3">
+                      <div className="grid items-center gap-3 rounded-2xl bg-slate-50 px-5 py-3 text-[11px] font-bold tracking-[0.12em] text-slate-400 md:grid-cols-[52px_120px_minmax(240px,1.25fr)_120px_160px_minmax(240px,1fr)_110px_120px_140px_120px_140px]">
+                        <span className="text-center">선택</span>
+                        <span className="text-center">상담일자</span>
+                        <span>업체 정보</span>
+                        <span className="text-center">대표자명</span>
+                        <span className="text-center">핸드폰</span>
+                        <span>주소</span>
+                        <span className="text-center">접수일</span>
+                        <span className="text-center">담당 TM</span>
+                        <span className="text-center">상담상태</span>
+                        <span className="text-center">영업담당</span>
+                        <span className="text-right">정산금액</span>
+                      </div>
 
-                          <button
-                            onClick={() => openModal(c)}
-                            className="text-center text-sm font-bold text-slate-700 hover:text-blue-600"
-                          >
-                            {formatDate(c.consult_date)}
-                          </button>
-
-                          <button
-                            onClick={() => openModal(c)}
-                            className="min-w-0 text-left"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#13233F_0%,#0B1730_100%)] text-lg font-black text-white shadow-[0_12px_28px_rgba(37,99,235,0.18)]">
-                                {c.company_name?.[0] || "C"}
-                              </div>
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-black text-slate-900 group-hover:text-blue-600">
-                                  {c.company_name || "업체명 없음"}
-                                </p>
-                                <p className="mt-1 truncate text-xs font-medium text-slate-400">
-                                  내부 ID {c.id.split("-")[0]}
-                                </p>
-                              </div>
-                            </div>
-                          </button>
-
-                          <button
-                            onClick={() => openModal(c)}
-                            className="text-center text-sm font-bold text-slate-800"
-                          >
-                            {c.customer_name || "-"}
-                          </button>
-
-                          <button
-                            onClick={() => openModal(c)}
-                            className="text-center text-sm font-bold text-blue-700 tabular-nums"
-                          >
-                            {c.mobile_phone || "-"}
-                          </button>
-
-                          <button
-                            onClick={() => openModal(c)}
-                            className="truncate text-left text-sm font-medium text-slate-500"
-                          >
-                            {c.address || "-"}
-                          </button>
-
-                          <button
-                            onClick={() => openModal(c)}
-                            className="text-center text-sm font-semibold text-slate-700"
-                          >
-                            {formatDate(c.receipt_date)}
-                          </button>
-
-                          <button
-                            onClick={() => openModal(c)}
-                            className="text-center text-sm font-bold text-slate-800"
-                          >
-                            {getUserNameById(c.tm_id)}
-                          </button>
-
-                          <button
-                            onClick={() => openModal(c)}
-                            className="flex justify-center"
-                          >
-                            <span
-                              className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-black ${getStatusTone(
-                                c.consult_status
-                              )}`}
+                      {paginatedData.map((c, index) => (
+                        <div
+                          key={c.id}
+                          className={`group rounded-[24px] border px-5 py-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)] ${
+                            selectedIds.includes(c.id)
+                              ? "border-blue-200 bg-blue-50/40"
+                              : "border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80"
+                          }`}
+                          style={{ animationDelay: `${index * 50}ms` }}
+                        >
+                          <div className="grid items-center gap-3 md:grid-cols-[52px_120px_minmax(240px,1.25fr)_120px_160px_minmax(240px,1fr)_110px_120px_140px_120px_140px]">
+                            <div
+                              className="flex justify-center"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              {c.consult_status || "대기"}
-                            </span>
-                          </button>
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.includes(c.id)}
+                                onChange={() => toggleSelect(c.id)}
+                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                              />
+                            </div>
 
-                          <button
-                            onClick={() => openModal(c)}
-                            className="text-center text-sm font-bold text-slate-800"
-                          >
-                            {getUserNameById(c.sales_id)}
-                          </button>
-
-                          <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => openModal(c)}
-                              className="text-right text-sm font-black text-blue-700 tabular-nums"
+                              className="text-center text-sm font-bold text-slate-700 hover:text-blue-600"
                             >
-                              ₩{(c.sales_commission || 0).toLocaleString()}
+                              {formatDate(c.consult_date)}
                             </button>
 
                             <button
-                              onClick={() => openDeleteModal(c)}
-                              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-rose-100 bg-white text-rose-300 transition-all hover:bg-rose-50 hover:text-rose-600"
-                              aria-label={`${c.company_name} 삭제`}
+                              onClick={() => openModal(c)}
+                              className="min-w-0 text-left"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#13233F_0%,#0B1730_100%)] text-lg font-black text-white shadow-[0_12px_28px_rgba(37,99,235,0.18)]">
+                                  {c.company_name?.[0] || "C"}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-black text-slate-900 group-hover:text-blue-600">
+                                    {c.company_name || "업체명 없음"}
+                                  </p>
+                                  <p className="mt-1 truncate text-xs font-medium text-slate-400">
+                                    내부 ID {c.id.split("-")[0]}
+                                  </p>
+                                </div>
+                              </div>
                             </button>
+
+                            <button
+                              onClick={() => openModal(c)}
+                              className="text-center text-sm font-bold text-slate-800"
+                            >
+                              {c.customer_name || "-"}
+                            </button>
+
+                            <button
+                              onClick={() => openModal(c)}
+                              className="text-center text-sm font-bold text-blue-700 tabular-nums"
+                            >
+                              {c.mobile_phone || "-"}
+                            </button>
+
+                            <button
+                              onClick={() => openModal(c)}
+                              className="truncate text-left text-sm font-medium text-slate-500"
+                            >
+                              {c.address || "-"}
+                            </button>
+
+                            <button
+                              onClick={() => openModal(c)}
+                              className="text-center text-sm font-semibold text-slate-700"
+                            >
+                              {formatDate(c.receipt_date)}
+                            </button>
+
+                            <button
+                              onClick={() => openModal(c)}
+                              className="text-center text-sm font-bold text-slate-800"
+                            >
+                              {getUserNameById(c.tm_id)}
+                            </button>
+
+                            <button
+                              onClick={() => openModal(c)}
+                              className="flex justify-center"
+                            >
+                              <span
+                                className={`inline-flex min-w-[72px] justify-center whitespace-nowrap rounded-full border px-2.5 py-1.5 text-xs font-black leading-none ${getStatusTone(
+                                  c.consult_status
+                                )}`}
+                              >
+                                {c.consult_status || "대기"}
+                              </span>
+                            </button>
+
+                            <button
+                              onClick={() => openModal(c)}
+                              className="text-center text-sm font-bold text-slate-800"
+                            >
+                              {getUserNameById(c.sales_id)}
+                            </button>
+
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => openModal(c)}
+                                className="text-right text-sm font-black text-blue-700 tabular-nums"
+                              >
+                                ₩{(c.sales_commission || 0).toLocaleString()}
+                              </button>
+
+                              <button
+                                onClick={() => openDeleteModal(c)}
+                                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-rose-100 bg-white text-rose-300 transition-all hover:bg-rose-50 hover:text-rose-600"
+                                aria-label={`${c.company_name} 삭제`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      ))}
+                    </div>
                   )}
                 </div>
 
@@ -912,7 +892,7 @@ export default function CustomersPage() {
                           </div>
 
                           <span
-                            className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black ${getStatusTone(
+                            className={`inline-flex min-w-[64px] justify-center whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-black leading-none ${getStatusTone(
                               c.consult_status
                             )}`}
                           >

@@ -7,7 +7,7 @@ import { Bell, ChevronRight } from "lucide-react";
 export default function AdminHeader() {
   const pathname = usePathname();
   const [userName, setUserName] = useState("사용자");
-  const [userRole, setUserRole] = useState("관리자");
+  const [userRole, setUserRole] = useState("권한 미정");
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -15,16 +15,20 @@ export default function AdminHeader() {
 
     try {
       const parsed = JSON.parse(storedUser);
-      setUserName(parsed.name || "사용자");
-      setUserRole(parsed.role || "관리자");
+
+      setUserName(parsed?.name || "사용자");
+      setUserRole(
+        parsed?.role_name || parsed?.role || parsed?.roles?.name || "권한 미정"
+      );
     } catch (error) {
       console.error("유저 정보 파싱 에러", error);
     }
   }, []);
 
   const displayName = useMemo(() => {
-    const currentPathName =
-      pathname.split("/").filter(Boolean).pop() || "dashboard";
+    const cleanPath = pathname.split("?")[0].split("#")[0];
+    const segments = cleanPath.split("/").filter(Boolean);
+    const currentPathName = segments[segments.length - 1] || "dashboard";
 
     const pathMap: Record<string, string> = {
       dashboard: "대시보드",
@@ -33,6 +37,8 @@ export default function AdminHeader() {
       menus: "메뉴 관리",
       codes: "코드 관리",
       customers: "고객 관리",
+      "consult-history": "상담내역",
+      "sales-history": "영업내역",
     };
 
     return pathMap[currentPathName] || currentPathName;
@@ -74,7 +80,6 @@ export default function AdminHeader() {
           <div className="profile-avatar">{initial}</div>
         </div>
       </div>
-
     </div>
   );
 }

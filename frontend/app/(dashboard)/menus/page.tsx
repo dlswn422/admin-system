@@ -155,7 +155,7 @@ export default function MenusPage() {
   }, [menus]);
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-8 pb-20 p-4 md:p-8">
+    <div className="mx-auto max-w-[1600px] space-y-8 pb-20">
       {/* 토스트 알림 */}
       {toast && (
         <div className={`fixed right-6 top-6 z-[11000] flex items-center gap-3 rounded-[22px] border border-white/10 px-5 py-4 shadow-2xl backdrop-blur-2xl animate-in slide-in-from-right-8 duration-300 ${toast.type === "success" ? "bg-slate-900/90 text-white" : "bg-rose-600/90 text-white"}`}>
@@ -194,7 +194,11 @@ export default function MenusPage() {
                 <Layers3 className="h-3.5 w-3.5" /> 내비게이션 관리
               </div>
               <h1 className="text-[1.9rem] font-black leading-[1.02] tracking-[-0.05em] md:text-[2.4rem]">메뉴 관리</h1>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 md:text-[15px]">사이드바 메뉴 구조와 경로, 아이콘을 통합 관리합니다.</p>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 md:text-[15px]">
+                사이드바 메뉴 구조와 경로, 아이콘을 통합 관리합니다.
+                사용자 접근 흐름과 화면 이동 체계를 일관된 구조로 정리하고,
+                운영 환경에 맞는 내비게이션 구성을 효율저긍로 유지할 수 있도록 설계헀습니다.
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <button onClick={fetchMenus} className="group inline-flex h-14 w-14 items-center justify-center rounded-[20px] border border-white/10 bg-white/[0.06] text-slate-200 shadow-xl backdrop-blur-xl transition-all hover:bg-blue-500/10">
@@ -225,7 +229,7 @@ export default function MenusPage() {
       </section>
 
       {/* 메뉴 리스트 리스트 */}
-      <section className="fade-up overflow-hidden rounded-[30px] border border-slate-200/80 bg-white/95 shadow-[0_16px_36px_rgba(15,23,42,0.06)] flex flex-col h-[700px]">
+      <section className="fade-up overflow-hidden rounded-[30px] border border-slate-200/80 bg-white/95 shadow-[0_16px_36px_rgba(15,23,42,0.06)] flex flex-col h-[750px]">
         <div className="border-b border-slate-100 px-6 py-5 flex items-center justify-between">
           <div><h2 className="text-[1.2rem] font-bold text-slate-900 tracking-tight">메뉴 레지스트리</h2><p className="text-sm text-slate-500 mt-1">내비게이션 구조를 관리합니다.</p></div>
           <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600"><Sparkles size={14} className="text-blue-500" /> 실시간 반영</div>

@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. group_code로 group_id를 먼저 찾습니다.
+    // 1. group_code로 group_id 조회
     const { data: groupData, error: groupError } = await supabase
       .from("code_groups")
       .select("id")
@@ -24,12 +24,12 @@ export async function GET(request: Request) {
 
     if (groupError || !groupData) throw new Error("Group not found");
 
-    // 2. 찾은 group_id로 속한 모든 상세 코드를 가져옵니다.
+    // 2. 해당 ID를 가진 사용 중인(is_use: true) 상세 코드만 조회
     const { data: details, error: detailError } = await supabase
       .from("code_details")
       .select("code_value, code_name, sort_order")
       .eq("group_id", groupData.id)
-      .eq("is_use", true) // 사용 중인 것만
+      .eq("is_use", true)
       .order("sort_order", { ascending: true });
 
     if (detailError) throw detailError;
@@ -37,6 +37,7 @@ export async function GET(request: Request) {
     return NextResponse.json(details);
   } catch (error: any) {
     console.error("Common Code Fetch Error:", error.message);
-    return NextResponse.json([], { status: 200 }); // 에러 시 빈 배열 반환하여 렌더링 방해 방지
+    // 에러 발생 시 서비스 중단을 막기 위해 빈 배열 반환
+    return NextResponse.json([], { status: 200 }); 
   }
 }

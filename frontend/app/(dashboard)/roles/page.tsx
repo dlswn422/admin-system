@@ -210,7 +210,7 @@ export default function RolesPage() {
 
           <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-400/15 bg-violet-500/10 px-3 py-1.5 text-[11px] font-semibold tracking-[0.18em] text-violet-200">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-400/15 bg-blue-500/10 px-3 py-1.5 text-[11px] font-semibold tracking-[0.18em] text-violet-200">
                 <Lock className="h-3.5 w-3.5" />
                 권한 제어
               </div>

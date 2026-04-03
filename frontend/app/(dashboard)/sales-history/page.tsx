@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
-  UserPlus,
   Search,
   RotateCw,
   Trash2,
@@ -13,18 +12,17 @@ import {
   Sparkles,
   AlertTriangle,
   Wallet,
-  Mic,
-  Download,
   UserCheck,
-  Upload,
   Filter,
   Users,
   BriefcaseBusiness,
-  CalendarDays,
-  FileAudio,
-  ExternalLink,
+  Building2,
+  User as UserIcon,
+  Phone,
+  MapPin,
 } from "lucide-react";
 
+// --- Interfaces ---
 interface Customer {
   id: string;
   customer_name: string;
@@ -45,7 +43,7 @@ interface Customer {
   sales_commission: number;
 }
 
-interface User {
+interface UserInfo {
   id: string;
   name: string;
   role_name: string;
@@ -61,100 +59,63 @@ interface Toast {
   type: "success" | "error";
 }
 
-interface RecordingItem {
-  id: string;
-  customer_id: string;
-  file_name: string;
-  file_url: string;
-  duration?: string | null;
-  created_at?: string;
-  created_by?: string | null;
-}
-
 type FilterState = {
-  date_type: string;
   date_from: string;
   date_to: string;
   search: string;
-  tm_id: string;
   sales_id: string;
-  consult_status: string;
   sales_status: string;
 };
 
-const INITIAL_FILTERS: FilterState = {
-  date_type: "접수일",
-  date_from: "",
-  date_to: "",
-  search: "",
-  tm_id: "all",
-  sales_id: "all",
-  consult_status: "all",
-  sales_status: "all",
-};
+export default function SalesManagementPage() {
+  // --- 사용자 권한 설정 ---
+  const [currentUser] = useState({ id: "user_sales_1", name: "영업담당A", role_name: "관리자" }); 
+  const isAdmin = currentUser.role_name === "관리자";
 
-export default function CustomersPage() {
+  const INITIAL_FILTERS: FilterState = {
+    date_from: "",
+    date_to: "",
+    search: "",
+    sales_id: isAdmin ? "all" : currentUser.id,
+    sales_status: "all",
+  };
+
+  // --- States ---
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<UserInfo[]>([]);
   const [consultCodes, setConsultCodes] = useState<CommonCode[]>([]);
   const [salesCodes, setSalesCodes] = useState<CommonCode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-
-  const [assignTmId, setAssignTmId] = useState("");
-  const [assignSalesId, setAssignSalesId] = useState("");
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState<Partial<Customer>>({});
   const [toast, setToast] = useState<Toast | null>(null);
-
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  const [recordings, setRecordings] = useState<RecordingItem[]>([]);
-  const [isRecordingsLoading, setIsRecordingsLoading] = useState(false);
-  const [isUploadingRecording, setIsUploadingRecording] = useState(false);
-  const [deletingRecordingId, setDeletingRecordingId] = useState<string | null>(null);
-
-  const [isExcelUploading, setIsExcelUploading] = useState(false);
-
-  const excelInputRef = useRef<HTMLInputElement | null>(null);
-  const recordingInputRef = useRef<HTMLInputElement | null>(null);
-
-  const showToast = useCallback(
-    (message: string, type: "success" | "error" = "success") => {
-      setToast({ message, type });
-      window.setTimeout(() => setToast(null), 3000);
-    },
-    []
-  );
+  // --- Utilities ---
+  const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    window.setTimeout(() => setToast(null), 3000);
+  }, []);
 
   const formatDate = useCallback((val?: string | null) => {
     if (!val) return "-";
     return String(val).split("T")[0].replace(/-/g, ".");
   }, []);
 
-  const getUserNameById = useCallback(
-    (id?: string | null) => {
-      if (!id) return "미배정";
-      return users.find((u) => u.id === id)?.name || "미배정";
-    },
-    [users]
-  );
+  const getUserNameById = useCallback((id?: string | null) => {
+    if (!id) return "미배정";
+    return users.find((u) => u.id === id)?.name || "미배정";
+  }, [users]);
 
   const getStatusTone = useCallback((v?: string) => {
     const text = (v || "").trim();
-    if (/(완료|계약|성공|종결)/.test(text)) {
-      return "bg-emerald-50 text-emerald-600 border-emerald-100";
-    }
-    if (/(보류|취소|실패|부재)/.test(text)) {
-      return "bg-rose-50 text-rose-500 border-rose-100";
-    }
+    if (/(완료|계약|성공|종결)/.test(text)) return "bg-emerald-50 text-emerald-600 border-emerald-100";
+    if (/(보류|취소|실패|부재)/.test(text)) return "bg-rose-50 text-rose-500 border-rose-100";
     return "bg-blue-50 text-blue-600 border-blue-100";
   }, []);
 
@@ -162,24 +123,25 @@ export default function CustomersPage() {
     return `₩${Number(value || 0).toLocaleString()}`;
   }, []);
 
+  // --- API Calls ---
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const query = new URLSearchParams({
+      const queryParams = new URLSearchParams({
         ...filters,
-        limit: itemsPerPage.toString(),
-        offset: ((currentPage - 1) * itemsPerPage).toString(),
+        date_type: "영업일",
+        sales_id: isAdmin ? filters.sales_id : currentUser.id,
       }).toString();
 
       const [cRes, uRes, cCodeRes, sCodeRes] = await Promise.all([
-        fetch(`/api/customers?${query}`),
+        fetch(`/api/customers?${queryParams}`),
         fetch("/api/users"),
         fetch("/api/codes/details/by-group?group_code=CONSULT_STATUS"),
         fetch("/api/codes/details/by-group?group_code=SALES_STATUS"),
       ]);
 
       const cData = await cRes.json();
-      setCustomers(Array.isArray(cData) ? cData : Array.isArray(cData?.data) ? cData.data : []);
+      setCustomers(Array.isArray(cData) ? cData : cData?.data || []);
       setUsers(await uRes.json());
       setConsultCodes(await cCodeRes.json());
       setSalesCodes(await sCodeRes.json());
@@ -188,35 +150,45 @@ export default function CustomersPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [filters, itemsPerPage, currentPage, showToast]);
+  }, [filters, isAdmin, currentUser.id, showToast]);
 
-  const fetchRecordings = useCallback(
-    async (customerId: string) => {
-      setIsRecordingsLoading(true);
-      try {
-        const res = await fetch(
-          `/api/recordings/upload?customer_id=${encodeURIComponent(customerId)}`
-        );
-        const data = await res.json();
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-        if (!res.ok) {
-          throw new Error(data?.error || "녹취 목록 조회 실패");
-        }
+  const openModal = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    // 상담 상태값이 정상적으로 표시되도록 데이터 확실히 매핑
+    setFormData({ 
+      ...customer, 
+      consult_status: customer.consult_status || "" 
+    });
+    setIsModalOpen(true);
+  };
 
-        setRecordings(Array.isArray(data) ? data : []);
-      } catch (error) {
-        setRecordings([]);
-        showToast(error instanceof Error ? error.message : "녹취 목록 조회 실패", "error");
-      } finally {
-        setIsRecordingsLoading(false);
-      }
-    },
-    [showToast]
-  );
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = await fetch(`/api/customers/${selectedCustomer?.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData),
+    });
+    if (res.ok) {
+      setIsModalOpen(false);
+      showToast("영업 실적이 저장되었습니다.");
+      fetchData();
+    }
+  };
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const confirmDelete = (e: React.MouseEvent, customer: Customer) => {
+    e.stopPropagation();
+    setDeleteTarget(customer);
+    setIsDeleteModalOpen(true);
+  };
+
+  const stats = useMemo(() => ({
+    total: customers.length,
+    completed: customers.filter(c => c.sales_status?.includes("완료")).length,
+    totalCommission: customers.reduce((sum, c) => sum + Number(c.sales_commission || 0), 0)
+  }), [customers]);
 
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -225,907 +197,252 @@ export default function CustomersPage() {
 
   const totalPages = Math.max(1, Math.ceil(customers.length / itemsPerPage));
 
-  const totalCommission = useMemo(
-    () =>
-      customers.reduce(
-        (sum, customer) => sum + Number(customer.sales_commission || 0),
-        0
-      ),
-    [customers]
-  );
-
-  const assignedTmCount = useMemo(
-    () => customers.filter((customer) => !!customer.tm_id).length,
-    [customers]
-  );
-
-  const assignedSalesCount = useMemo(
-    () => customers.filter((customer) => !!customer.sales_id).length,
-    [customers]
-  );
-
-  const selectedCount = selectedIds.length;
-
-  const resultSummary = useMemo(() => {
-    const parts: string[] = [];
-    if (filters.search) parts.push("검색 적용");
-    if (filters.tm_id !== "all") parts.push("TM 필터");
-    if (filters.sales_id !== "all") parts.push("영업자 필터");
-    if (filters.consult_status !== "all") parts.push("상담 상태");
-    if (filters.sales_status !== "all") parts.push("영업 상태");
-    if (filters.date_from || filters.date_to) parts.push("기간 필터");
-
-    if (parts.length === 0) return `총 ${customers.length}건`;
-    return `${parts.join(" · ")} · ${customers.length}건`;
-  }, [filters, customers.length]);
-
-  const toggleSelectAll = () => {
-    if (selectedIds.length === paginatedData.length && paginatedData.length > 0) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(paginatedData.map((c) => c.id));
-    }
-  };
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
-  };
-
-  const handleBulkAssign = async (type: "TM" | "SALES") => {
-    const assigneeId = type === "TM" ? assignTmId : assignSalesId;
-    if (!assigneeId) {
-      return showToast("배정할 담당자를 선택해주세요.", "error");
-    }
-    if (selectedIds.length === 0) {
-      return showToast("고객을 먼저 선택해주세요.", "error");
-    }
-
-    try {
-      const res = await fetch("/api/customers", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: selectedIds, type, assignee_id: assigneeId }),
-      });
-
-      if (!res.ok) throw new Error("배정 중 오류 발생");
-
-      showToast(`${selectedIds.length}명 일괄 배정 완료`);
-      setSelectedIds([]);
-      await fetchData();
-    } catch (e) {
-      showToast("배정 중 오류 발생", "error");
-    }
-  };
-
-  const excelEscape = (value: string) =>
-    String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-  const downloadTemplate = () => {
-    const xml = `<?xml version="1.0"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
- <Styles>
-  <Style ss:ID="Default"><Font ss:FontName="맑은 고딕" ss:Size="11"/></Style>
-  <Style ss:ID="Title"><Font ss:FontName="맑은 고딕" ss:Size="12" ss:Bold="1"/></Style>
-  <Style ss:ID="Notice"><Interior ss:Color="#E2F0D9" ss:Pattern="Solid"/><Font ss:FontName="맑은 고딕" ss:Size="11"/></Style>
-  <Style ss:ID="Header">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-   <Font ss:FontName="맑은 고딕" ss:Size="11" ss:Bold="1"/>
-  </Style>
-  <Style ss:ID="HeaderRequired">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-   <Font ss:FontName="맑은 고딕" ss:Size="11" ss:Bold="1" ss:Color="#C00000"/>
-  </Style>
-  <Style ss:ID="Body">
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-  </Style>
- </Styles>
- <Worksheet ss:Name="고객일괄등록">
-  <Table>
-   <Column ss:Width="120"/>
-   <Column ss:Width="120"/>
-   <Column ss:Width="120"/>
-   <Column ss:Width="120"/>
-   <Column ss:Width="340"/>
-   <Column ss:Width="240"/>
-   <Row ss:Height="26"><Cell ss:StyleID="Title" ss:MergeAcross="5"><Data ss:Type="String">${excelEscape("일괄 등록 주의 사항")}</Data></Cell></Row>
-   <Row ss:Height="26"><Cell ss:StyleID="Notice" ss:MergeAcross="5"><Data ss:Type="String">${excelEscape("- 해당 파일의 형식을 임의 대로 수정하거나 필수값을 입력하지 않으시면 정상적으로 등록되지 않을 수 있습니다.")}</Data></Cell></Row>
-   <Row ss:Height="26"><Cell ss:StyleID="Notice" ss:MergeAcross="5"><Data ss:Type="String">${excelEscape("- 공백이 포함된 행이 있는지 주의 부탁드립니다. 빈 값의 데이터 행이 등록될 수 있습니다.")}</Data></Cell></Row>
-   <Row ss:Height="26"><Cell ss:StyleID="Notice" ss:MergeAcross="5"><Data ss:Type="String">${excelEscape('- 모든 항목의 셀 표시 형식(서식)이 "텍스트"로 설정된 것을 확인 후 파일을 업로드해 주세요.')}</Data></Cell></Row>
-   <Row ss:Height="28">
-    <Cell ss:StyleID="HeaderRequired"><Data ss:Type="String">업체명*</Data></Cell>
-    <Cell ss:StyleID="Header"><Data ss:Type="String">대표자명</Data></Cell>
-    <Cell ss:StyleID="Header"><Data ss:Type="String">유선</Data></Cell>
-    <Cell ss:StyleID="Header"><Data ss:Type="String">핸드폰</Data></Cell>
-    <Cell ss:StyleID="Header"><Data ss:Type="String">주소</Data></Cell>
-    <Cell ss:StyleID="Header"><Data ss:Type="String">비고</Data></Cell>
-   </Row>
-   <Row ss:Height="24">
-    <Cell ss:StyleID="Body"><Data ss:Type="String"></Data></Cell>
-    <Cell ss:StyleID="Body"><Data ss:Type="String"></Data></Cell>
-    <Cell ss:StyleID="Body"><Data ss:Type="String"></Data></Cell>
-    <Cell ss:StyleID="Body"><Data ss:Type="String"></Data></Cell>
-    <Cell ss:StyleID="Body"><Data ss:Type="String"></Data></Cell>
-    <Cell ss:StyleID="Body"><Data ss:Type="String"></Data></Cell>
-   </Row>
-  </Table>
- </Worksheet>
-</Workbook>`;
-
-    const blob = new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "고객일괄등록_양식.xls";
-    link.click();
-    URL.revokeObjectURL(link.href);
-  };
-
-  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setIsExcelUploading(true);
-      const body = new FormData();
-      body.append("file", file);
-
-      const res = await fetch("/api/customers/upload", { method: "POST", body });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || "엑셀 업로드 실패");
-
-      showToast(`${Number(data?.insertedCount || 0)}건 업로드 완료`);
-      await fetchData();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "엑셀 업로드 실패", "error");
-    } finally {
-      setIsExcelUploading(false);
-      if (excelInputRef.current) excelInputRef.current.value = "";
-    }
-  };
-
-  const openModal = async (customer: Customer | null = null) => {
-    setSelectedCustomer(customer);
-    setFormData(
-      customer
-        ? { ...customer }
-        : { receipt_date: new Date().toISOString().split("T")[0], sales_commission: 0 }
-    );
-    setRecordings([]);
-    setIsModalOpen(true);
-
-    if (customer?.id) {
-      await fetchRecordings(customer.id);
-    }
-  };
-
-  const openDeleteModal = (customer: Customer) => {
-    setDeleteTarget(customer);
-    setIsDeleteModalOpen(true);
-  };
-
-  const handleRecordingUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!selectedCustomer?.id) {
-      showToast("기존 고객 상세에서만 녹취 업로드가 가능합니다.", "error");
-      e.target.value = "";
-      return;
-    }
-
-    try {
-      setIsUploadingRecording(true);
-      const body = new FormData();
-      body.append("file", file);
-      body.append("customer_id", selectedCustomer.id);
-
-      const res = await fetch("/api/recordings/upload", { method: "POST", body });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || "녹취 업로드 실패");
-
-      showToast("녹취 파일이 업로드되었습니다.");
-      await fetchRecordings(selectedCustomer.id);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "녹취 업로드 실패", "error");
-    } finally {
-      setIsUploadingRecording(false);
-      if (recordingInputRef.current) recordingInputRef.current.value = "";
-    }
-  };
-
-  const handleRecordingDelete = async (recordingId: string) => {
-    if (!selectedCustomer?.id) return;
-
-    try {
-      setDeletingRecordingId(recordingId);
-      const res = await fetch("/api/recordings/upload", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: recordingId }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || "녹취 삭제 실패");
-
-      showToast("녹취 파일이 삭제되었습니다.");
-      await fetchRecordings(selectedCustomer.id);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "녹취 삭제 실패", "error");
-    } finally {
-      setDeletingRecordingId(null);
-    }
-  };
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const companyName = String(formData.company_name || "").trim();
-    if (!companyName) {
-      showToast("업체명은 필수값입니다.", "error");
-      return;
-    }
-
-    const url = selectedCustomer ? `/api/customers/${selectedCustomer.id}` : "/api/customers";
-    const payload = {
-      ...formData,
-      company_name: companyName,
-      sales_commission: Number(formData.sales_commission || 0),
-    };
-
-    const res = await fetch(url, {
-      method: selectedCustomer ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (res.ok) {
-      setIsModalOpen(false);
-      showToast("저장되었습니다.");
-      fetchData();
-    }
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-
-    try {
-      const res = await fetch(`/api/customers/${encodeURIComponent(deleteTarget.id)}`, {
-        method: "DELETE",
-        headers: { Accept: "application/json" },
-      });
-
-      let errorMessage = "삭제 실패";
-      const contentType = res.headers.get("content-type") || "";
-
-      if (!res.ok) {
-        if (contentType.includes("application/json")) {
-          const data = await res.json().catch(() => null);
-          errorMessage = data?.message || data?.error || errorMessage;
-        } else {
-          const text = await res.text().catch(() => "");
-          if (text) errorMessage = text;
-        }
-        throw new Error(errorMessage);
-      }
-
-      setIsDeleteModalOpen(false);
-      setDeleteTarget(null);
-      showToast("고객이 삭제되었습니다.");
-      await fetchData();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "삭제 실패";
-      showToast(message, "error");
-    }
-  };
-
   return (
-    <div className="mx-auto max-w-[1600px] space-y-8 pb-20">
-      <input ref={excelInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelUpload} />
-      <input ref={recordingInputRef} type="file" accept="*/*" className="hidden" onChange={handleRecordingUpload} />
-
+    <div className="mx-auto max-w-[1600px] space-y-6 pb-20 text-slate-900">
       {toast && (
-        <div
-          className={`fixed right-6 top-6 z-[11000] flex items-center gap-3 rounded-[22px] border border-white/10 px-5 py-4 shadow-[0_24px_50px_rgba(15,23,42,0.2)] backdrop-blur-2xl animate-in slide-in-from-right-8 duration-300 ${
-            toast.type === "success" ? "bg-slate-900/90 text-white" : "bg-rose-600/90 text-white"
-          }`}
-        >
-          <div className="h-2.5 w-2.5 rounded-full bg-current animate-pulse" />
-          <p className="text-sm font-bold tracking-[-0.02em]">{toast.message}</p>
+        <div className={`fixed right-6 top-6 z-[11000] flex items-center gap-3 rounded-2xl px-6 py-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-right-8 ${toast.type === "success" ? "bg-slate-900/90 text-white" : "bg-rose-600/90 text-white"}`}>
+          <div className="h-2 w-2 rounded-full bg-current animate-pulse" />
+          <p className="text-sm font-bold">{toast.message}</p>
         </div>
       )}
 
+      {/* 1. 슬림 헤더 (상담 관리 화면과 동일 규격) */}
       <section className="soft-scale-in">
-        <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(8,15,30,0.96),rgba(11,18,36,0.88))] p-6 shadow-[0_28px_70px_rgba(2,6,23,0.18)] backdrop-blur-2xl md:p-8">
-          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),transparent_34%,transparent_72%,rgba(59,130,246,0.06))]" />
-          <div className="absolute -left-12 top-0 h-40 w-40 rounded-full bg-blue-500/12 blur-3xl" />
-          <div className="absolute right-0 top-0 h-44 w-44 rounded-full bg-violet-500/10 blur-3xl" />
-          <div className="absolute bottom-0 left-1/3 h-32 w-32 rounded-full bg-cyan-400/10 blur-3xl" />
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-
-          <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-3xl">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-400/15 bg-blue-500/10 px-3 py-1.5 text-[11px] font-semibold tracking-[0.18em] text-blue-200 uppercase">
-                <Layers className="h-3.5 w-3.5" />
-                고객 파이프라인
+        <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#1e232d] px-10 py-8 shadow-xl">
+          <div className="relative flex items-center justify-between">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest border border-white/5">
+                <Layers className="h-3 w-3" /> 영업 실적 시스템
               </div>
-
-              <h1 className="text-[1.9rem] font-black leading-[1.02] tracking-[-0.05em] text-white md:text-[2.4rem]">
-                고객 관리
-              </h1>
-
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 md:text-[15px]">
-                고객 접수부터 상담, 영업 배정, 정산 정보까지 한 화면에서 통합
-                관리합니다. 운영 흐름을 빠르게 확인하고 즉시 대응할 수 있도록
-                일관된 관리 시스템 구조로 정리했습니다.
-              </p>
+              <h1 className="text-[2.2rem] font-black leading-none tracking-tight text-white">영업 관리</h1>
+              <p className="text-slate-400 text-sm">실시간 영업 현황 및 성과를 통합 관리합니다.</p>
             </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={fetchData}
-                className="group inline-flex h-14 w-14 items-center justify-center rounded-[20px] border border-white/10 bg-white/[0.06] text-slate-200 shadow-[0_14px_28px_rgba(2,6,23,0.18)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-400/20 hover:bg-blue-500/10 hover:text-white"
-                aria-label="새로고침"
-                type="button"
-              >
-                <RotateCw className={`h-5 w-5 transition-transform duration-500 ${isLoading ? "animate-spin" : "group-hover:rotate-180"}`} />
-              </button>
-
-              <button
-                onClick={downloadTemplate}
-                className="inline-flex h-14 items-center gap-2 rounded-[20px] border border-white/10 bg-white/[0.06] px-5 text-sm font-bold text-slate-200 shadow-[0_14px_28px_rgba(2,6,23,0.18)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/[0.1]"
-                type="button"
-              >
-                <Download className="h-4.5 w-4.5" />
-                양식 다운로드
-              </button>
-
-              <button
-                type="button"
-                onClick={() => excelInputRef.current?.click()}
-                disabled={isExcelUploading}
-                className="inline-flex h-14 items-center gap-2 rounded-[20px] border border-emerald-400/15 bg-emerald-500/10 px-5 text-sm font-bold text-emerald-100 shadow-[0_14px_28px_rgba(2,6,23,0.18)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:bg-emerald-500/15 disabled:opacity-60"
-              >
-                <Upload className="h-4.5 w-4.5" />
-                {isExcelUploading ? "업로드 중..." : "엑셀 업로드"}
-              </button>
-
-              <button
-                onClick={() => openModal()}
-                className="group relative inline-flex items-center gap-3 overflow-hidden rounded-[22px] bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 px-6 py-4 text-sm font-extrabold tracking-[-0.02em] text-white shadow-[0_18px_36px_rgba(59,130,246,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_42px_rgba(59,130,246,0.32)] active:scale-[0.98]"
-                type="button"
-              >
-                <span className="absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 bg-[linear-gradient(120deg,transparent_0%,rgba(255,255,255,0.16)_20%,transparent_42%)] [animation:shimmer-x_2.8s_linear_infinite]" />
-                <UserPlus className="relative z-10 h-4.5 w-4.5" />
-                <span className="relative z-10">신규 고객 추가</span>
-              </button>
-            </div>
+            <button onClick={fetchData} className="group h-11 w-11 flex items-center justify-center rounded-full bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white transition-all">
+              <RotateCw className={`h-5 w-5 ${isLoading ? "animate-spin" : ""}`} />
+            </button>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {/* 2. 통계 카드 */}
+      <section className="grid gap-4 md:grid-cols-3">
         {[
-          {
-            label: "전체 고객",
-            value: customers.length.toString().padStart(2, "0"),
-            icon: Users,
-            tone: "bg-blue-500/10 text-blue-600 ring-blue-500/15",
-          },
-          {
-            label: "TM 배정 고객",
-            value: assignedTmCount.toString().padStart(2, "0"),
-            icon: Mic,
-            tone: "bg-emerald-500/10 text-emerald-600 ring-emerald-500/15",
-          },
-          {
-            label: "영업 배정 고객",
-            value: assignedSalesCount.toString().padStart(2, "0"),
-            icon: BriefcaseBusiness,
-            tone: "bg-violet-500/10 text-violet-600 ring-violet-500/15",
-          },
-          {
-            label: "누적 정산금액",
-            value: `₩${totalCommission.toLocaleString()}`,
-            icon: Wallet,
-            tone: "bg-slate-900/10 text-slate-700 ring-slate-300/40",
-          },
-        ].map((stat, index) => {
-          const Icon = stat.icon;
-          return (
-            <div
-              key={stat.label}
-              className="fade-up group rounded-[28px] border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/95 p-6 shadow-[0_12px_30px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_45px_rgba(15,23,42,0.1)]"
-              style={{ animationDelay: `${index * 70}ms` }}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">{stat.label}</p>
-                  <p className="mt-3 truncate text-[2rem] font-black leading-none tracking-[-0.05em] text-slate-900">{stat.value}</p>
-                </div>
-                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ring-1 ${stat.tone}`}>
-                  <Icon className="h-5 w-5" />
-                </div>
-              </div>
-              <p className="mt-4 text-sm font-medium text-slate-400">{stat.label} 현황 요약</p>
-            </div>
-          );
-        })}
-      </section>
-
-      <section className="fade-up rounded-[28px] border border-white/60 bg-white/80 p-4 shadow-[0_12px_30px_rgba(15,23,42,0.05)] backdrop-blur-xl">
-        <div className="grid items-start gap-3 xl:grid-cols-[180px_minmax(0,1fr)_260px]">
-          <div className="relative self-start">
-            <Filter className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" />
-            <select
-              value={filters.date_type}
-              onChange={(e) => setFilters({ ...filters, date_type: e.target.value })}
-              className="h-14 w-full appearance-none rounded-[20px] border border-slate-200/80 bg-slate-50/80 py-0 pl-12 pr-12 text-sm font-semibold text-slate-900 outline-none"
-            >
-              <option>접수일</option>
-              <option>상담일</option>
-            </select>
-          </div>
-
-          <div className="grid items-start gap-3 md:grid-cols-[140px_auto_140px_minmax(0,1fr)]">
-            <input type="date" value={filters.date_from} onChange={(e) => setFilters({ ...filters, date_from: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none" />
-            <div className="flex h-14 items-center justify-center text-slate-300 font-black">~</div>
-            <input type="date" value={filters.date_to} onChange={(e) => setFilters({ ...filters, date_to: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none" />
-            <div className="relative self-start group">
-              <Search className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" />
-              <input value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} placeholder="업체명, 대표자, 연락처 검색" className="h-14 w-full rounded-[20px] border border-slate-200/80 bg-slate-50/80 py-0 pl-12 pr-5 text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400" />
-            </div>
-          </div>
-
-          <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-1">
-            <div className="flex gap-2">
-              <select value={assignTmId} onChange={(e) => setAssignTmId(e.target.value)} className="h-14 min-w-0 flex-1 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
-                <option value="">TM 선택</option>
-                {users.filter((u) => u.role_name === "TM").map((u) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
-              <button type="button" onClick={() => handleBulkAssign("TM")} className="h-14 rounded-[20px] bg-slate-900 px-4 text-sm font-black text-white">TM 배정</button>
-            </div>
-
-            <div className="flex gap-2">
-              <select value={assignSalesId} onChange={(e) => setAssignSalesId(e.target.value)} className="h-14 min-w-0 flex-1 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
-                <option value="">영업사원 선택</option>
-                {users.filter((u) => u.role_name === "영업").map((u) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
-              <button type="button" onClick={() => handleBulkAssign("SALES")} className="h-14 rounded-[20px] bg-slate-900 px-4 text-sm font-black text-white">영업 배정</button>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-3 grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1fr_auto_auto]">
-          <select value={filters.tm_id} onChange={(e) => setFilters({ ...filters, tm_id: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
-            <option value="all">담당 TM 전체</option>
-            {users.filter((u) => u.role_name === "TM").map((u) => (
-              <option key={u.id} value={u.id}>{u.name}</option>
-            ))}
-          </select>
-
-          <select value={filters.consult_status} onChange={(e) => setFilters({ ...filters, consult_status: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
-            <option value="all">상담 상태 전체</option>
-            {consultCodes.map((c) => (
-              <option key={c.code_value} value={c.code_name}>{c.code_name}</option>
-            ))}
-          </select>
-
-          <select value={filters.sales_id} onChange={(e) => setFilters({ ...filters, sales_id: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
-            <option value="all">영업자 전체</option>
-            {users.filter((u) => u.role_name === "영업").map((u) => (
-              <option key={u.id} value={u.id}>{u.name}</option>
-            ))}
-          </select>
-
-          <select value={filters.sales_status} onChange={(e) => setFilters({ ...filters, sales_status: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
-            <option value="all">영업 상태 전체</option>
-            {salesCodes.map((s) => (
-              <option key={s.code_value} value={s.code_name}>{s.code_name}</option>
-            ))}
-          </select>
-
-          <button type="button" onClick={() => setFilters(INITIAL_FILTERS)} className="h-14 rounded-[20px] border border-slate-200 bg-white px-5 text-sm font-bold text-slate-500">초기화</button>
-
-          <div className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-slate-100 px-4 text-sm font-semibold text-slate-600">
-            <Sparkles className="h-4 w-4" />
-            {selectedCount > 0 ? `${selectedCount}건 선택됨` : resultSummary}
-          </div>
-        </div>
-      </section>
-
-      <section className="fade-up overflow-hidden rounded-[30px] border border-slate-200/80 bg-white/95 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
-        <div className="border-b border-slate-100 px-6 py-5">
-          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          { label: "배정 고객수", value: stats.total, icon: Users, color: "text-blue-600 bg-blue-50" },
+          { label: "계약 완료", value: stats.completed, icon: UserCheck, color: "text-emerald-600 bg-emerald-50" },
+          { label: "예상 수당 총액", value: formatCommission(stats.totalCommission), icon: Wallet, color: "text-violet-600 bg-violet-50" },
+        ].map((stat, i) => (
+          <div key={i} className="flex items-center justify-between rounded-[24px] border border-slate-200 bg-white p-8 shadow-sm">
             <div>
-              <h2 className="text-[1.2rem] font-bold tracking-[-0.03em] text-slate-900">고객 레지스트리</h2>
-              <p className="mt-1 text-sm text-slate-500">고객 기본정보와 상담/영업 상태를 빠르게 조회하고 수정할 수 있습니다.</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{stat.label}</p>
+              <p className="mt-2 text-2xl font-black text-slate-900">{stat.value.toString().padStart(2, '0')}</p>
             </div>
+            <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${stat.color}`}>
+              <stat.icon className="h-6 w-6" />
+            </div>
+          </div>
+        ))}
+      </section>
 
-            <div className="flex items-center gap-3">
-              <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600">
-                <Sparkles className="h-3.5 w-3.5" />
-                실시간 반영
-              </div>
-
-              <select value={itemsPerPage} onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 outline-none">
-                <option value={10}>10개씩</option>
-                <option value={50}>50개씩</option>
-                <option value={100}>100개씩</option>
-                <option value={500}>500개씩</option>
-              </select>
+      {/* 3. 필터 바 */}
+      <section className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="grid items-start gap-4 xl:grid-cols-[140px_1fr]">
+          <div className="flex h-[52px] items-center justify-center gap-2 rounded-2xl bg-slate-50 px-4 text-sm font-bold text-slate-500 border border-slate-100">
+            <Filter className="h-4 w-4" /> 영업일자
+          </div>
+          <div className="grid items-start gap-3 md:grid-cols-[160px_30px_160px_1fr]">
+            <input type="date" value={filters.date_from} onChange={e => setFilters({...filters, date_from: e.target.value})} className="h-[52px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold focus:border-blue-500 outline-none" />
+            <div className="flex h-[52px] items-center justify-center text-slate-400 font-bold">~</div>
+            <input type="date" value={filters.date_to} onChange={e => setFilters({...filters, date_to: e.target.value})} className="h-[52px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold focus:border-blue-500 outline-none" />
+            <div className="relative">
+              <Search className="absolute left-5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} placeholder="업체명, 대표자 검색" className="h-[52px] w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-5 text-sm font-bold focus:border-blue-500 outline-none" />
             </div>
           </div>
         </div>
-
-        <div className="px-4 py-4 md:px-6 md:py-5">
-          <div className="mt-3 space-y-3">
-            {isLoading ? (
-              [1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-24 rounded-[24px] border border-slate-100 bg-slate-50/80 animate-pulse" />
-              ))
-            ) : (
-              <>
-                <div className="hidden md:block w-full overflow-x-auto">
-                  {paginatedData.length === 0 ? (
-                    <div className="rounded-[26px] border border-dashed border-slate-200 bg-slate-50/80 px-6 py-16 text-center">
-                      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-                        <Users className="h-6 w-6" />
-                      </div>
-                      <h3 className="text-lg font-bold tracking-[-0.03em] text-slate-800">표시할 고객이 없습니다</h3>
-                      <p className="mt-2 text-sm text-slate-500">검색 조건을 변경하거나 신규 고객을 등록해보세요.</p>
-                    </div>
-                  ) : (
-                    <div className="min-w-[1660px] space-y-3">
-                      <div className="grid items-center gap-3 rounded-2xl bg-slate-50 px-5 py-3 text-[11px] font-bold tracking-[0.12em] text-slate-400 md:grid-cols-[52px_120px_minmax(240px,1.25fr)_120px_160px_minmax(240px,1fr)_110px_120px_140px_120px_120px_72px]">
-                        <span className="text-center">선택</span>
-                        <span className="text-center">상담일자</span>
-                        <span>업체 정보</span>
-                        <span className="text-center">대표자명</span>
-                        <span className="text-center">핸드폰</span>
-                        <span>주소</span>
-                        <span className="text-center">접수일</span>
-                        <span className="text-center">담당 TM</span>
-                        <span className="text-center">상담상태</span>
-                        <span className="text-center">영업담당</span>
-                        <span className="text-right">영업수당</span>
-                        <span className="text-center">삭제</span>
-                      </div>
-
-                      {paginatedData.map((c) => (
-                        <div key={c.id} className="group rounded-[24px] border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 px-5 py-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)]">
-                          <div className="grid items-center gap-3 md:grid-cols-[52px_120px_minmax(240px,1.25fr)_120px_160px_minmax(240px,1fr)_110px_120px_140px_120px_120px_72px]">
-                            <div className="flex justify-center">
-                              <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} />
-                            </div>
-                            <button type="button" onClick={() => openModal(c)} className="text-center text-sm font-semibold text-slate-700">{formatDate(c.consult_date)}</button>
-                            <button type="button" onClick={() => openModal(c)} className="text-left">
-                              <div className="truncate text-base font-black tracking-[-0.03em] text-slate-900">{c.company_name || "-"}</div>
-                              <div className="mt-1 truncate text-sm text-slate-500">{c.note || c.landline_phone || "-"}</div>
-                            </button>
-                            <button type="button" onClick={() => openModal(c)} className="text-center text-sm font-semibold text-slate-700">{c.customer_name || "-"}</button>
-                            <button type="button" onClick={() => openModal(c)} className="text-center text-sm font-semibold text-slate-700">{c.mobile_phone || "-"}</button>
-                            <button type="button" onClick={() => openModal(c)} className="truncate text-left text-sm font-semibold text-slate-700">{c.address || "-"}</button>
-                            <button type="button" onClick={() => openModal(c)} className="text-center text-sm font-semibold text-slate-700">{formatDate(c.receipt_date)}</button>
-                            <button type="button" onClick={() => openModal(c)} className="text-center text-sm font-semibold text-slate-700">{getUserNameById(c.tm_id)}</button>
-                            <button type="button" onClick={() => openModal(c)} className="flex justify-center">
-                              <span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-bold ${getStatusTone(c.consult_status)}`}>{c.consult_status || "미지정"}</span>
-                            </button>
-                            <button type="button" onClick={() => openModal(c)} className="text-center text-sm font-semibold text-slate-700">{getUserNameById(c.sales_id)}</button>
-                            <button type="button" onClick={() => openModal(c)} className="text-right text-sm font-black text-slate-900">{formatCommission(c.sales_commission)}</button>
-                            <div className="flex justify-center">
-                              <button type="button" onClick={() => openDeleteModal(c)} className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-500">
-                                <Trash2 className="h-4.5 w-4.5" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-3 md:hidden">
-                  {paginatedData.map((c) => (
-                    <div key={c.id} className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-base font-black text-slate-900">{c.company_name || "-"}</div>
-                          <div className="mt-1 text-sm text-slate-500">{c.customer_name || "-"}</div>
-                        </div>
-                        <span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-bold ${getStatusTone(c.consult_status)}`}>{c.consult_status || "미지정"}</span>
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                        <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                          <div className="text-slate-400">상담일자</div>
-                          <div className="mt-1 font-bold text-slate-800">{formatDate(c.consult_date)}</div>
-                        </div>
-                        <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                          <div className="text-slate-400">핸드폰</div>
-                          <div className="mt-1 font-bold text-slate-800">{c.mobile_phone || "-"}</div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex gap-2">
-                        <button type="button" onClick={() => openModal(c)} className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white">상세 보기</button>
-                        <button type="button" onClick={() => openDeleteModal(c)} className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-500">
-                          <Trash2 className="h-4.5 w-4.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-5 md:flex-row md:items-center md:justify-between">
-            <div className="text-sm font-semibold text-slate-400">총 {customers.length}건 중 {paginatedData.length}건 표시</div>
-
-            <div className="flex items-center justify-end gap-2">
-              <button type="button" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 transition-all hover:bg-slate-900 hover:text-white disabled:opacity-20">
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-
-              <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-3">
-                <CalendarDays className="h-4 w-4 text-slate-500" />
-                <span className="text-sm font-bold text-slate-700">{currentPage}</span>
-                <span className="text-sm font-bold text-slate-400">/</span>
-                <span className="text-sm font-bold text-slate-400">{totalPages}</span>
-              </div>
-
-              <button type="button" disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => p + 1)} className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 transition-all hover:bg-slate-900 hover:text-white disabled:opacity-20">
-                <ChevronRight className="h-5 w-5" />
-              </button>
+        <div className="mt-4 grid gap-3 xl:grid-cols-[1fr_1fr_auto_auto]">
+          {isAdmin ? (
+            <select value={filters.sales_id} onChange={e => setFilters({...filters, sales_id: e.target.value})} className="h-[52px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold outline-none focus:border-blue-500">
+              <option value="all">담당 영업원 전체</option>
+              {users.filter(u => u.role_name === "영업").map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          ) : (
+            <div className="h-[52px] flex items-center px-5 bg-slate-50 rounded-2xl text-sm font-bold text-slate-700 border border-slate-100">
+              <Users className="h-4 w-4 mr-2 text-blue-500" /> {currentUser.name} (본인 배정건)
             </div>
+          )}
+          <select value={filters.sales_status} onChange={e => setFilters({...filters, sales_status: e.target.value})} className="h-[52px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold outline-none focus:border-blue-500">
+            <option value="all">영업 상태 전체</option>
+            {salesCodes.map(c => <option key={c.code_value} value={c.code_name}>{c.code_name}</option>)}
+          </select>
+          <button onClick={() => setFilters(INITIAL_FILTERS)} className="h-[52px] rounded-2xl px-8 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">초기화</button>
+          <div className="inline-flex h-[52px] items-center justify-center gap-2 rounded-full bg-[#1e232d] px-6 text-sm font-bold text-white shadow-lg">
+            <Sparkles className="h-4 w-4 text-blue-400" /> 검색 {customers.length}건
           </div>
         </div>
       </section>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/45 p-6 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="relative max-h-[95vh] w-full max-w-6xl overflow-hidden rounded-[34px] border border-white/10 bg-white shadow-[0_40px_90px_rgba(15,23,42,0.25)] animate-in zoom-in-95 duration-300 flex flex-col">
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent" />
-
-            <div className="custom-scrollbar flex-1 overflow-y-auto p-8 md:p-10">
-              <button type="button" onClick={() => setIsModalOpen(false)} className="absolute right-6 top-6 flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition-all hover:bg-slate-100 hover:text-slate-900">
-                <X className="h-5 w-5" />
-              </button>
-
-              <div className="mb-10">
-                <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-slate-500 uppercase">
-                  <UserCheck className="h-3.5 w-3.5" />
-                  고객 데이터 설정
+      {/* 4. 데이터 레지스트리 (행 클릭 활성화) */}
+      <section className="rounded-[24px] border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="border-b border-slate-100 px-8 py-6">
+          <h2 className="text-[1.1rem] font-bold text-slate-900 tracking-tight">영업 데이터 레지스트리</h2>
+        </div>
+        <div className="p-4 md:p-8 overflow-x-auto">
+          <div className="min-w-[1500px] space-y-2">
+            <div className="grid grid-cols-[120px_180px_110px_140px_120px_110px_110px_minmax(200px,1fr)_110px_60px] gap-6 px-8 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-50">
+              <span className="text-center">영업일자</span>
+              <span>업체명</span>
+              <span className="text-center">대표자</span>
+              <span className="text-center">연락처</span>
+              <span className="text-center">담당영업원</span>
+              <span className="text-center">영업상태</span>
+              <span className="text-center">상담상태</span>
+              <span>영업 메모</span>
+              <span className="text-right">수당</span>
+              <span className="text-center">삭제</span>
+            </div>
+            {isLoading ? (
+              [1, 2, 3].map(i => <div key={i} className="h-16 animate-pulse rounded-xl bg-slate-50" />)
+            ) : paginatedData.map((c) => (
+              <div key={c.id} onClick={() => openModal(c)} className="group grid grid-cols-[120px_180px_110px_140px_120px_110px_110px_minmax(200px,1fr)_110px_60px] items-center gap-6 rounded-2xl border border-slate-50 bg-white p-5 cursor-pointer hover:border-blue-200 hover:shadow-md transition-all">
+                <div className="text-center text-sm font-bold text-slate-500">{formatDate(c.sales_date)}</div>
+                <div className="font-black text-slate-900 text-base truncate">{c.company_name}</div>
+                <div className="text-center text-sm font-semibold">{c.customer_name || "-"}</div>
+                <div className="text-center text-sm font-semibold">{c.mobile_phone || "-"}</div>
+                <div className="text-center text-sm font-bold text-blue-600">{getUserNameById(c.sales_id)}</div>
+                <div className="flex justify-center">
+                  <span className={`px-3 py-1 rounded-full border text-[11px] font-black ${getStatusTone(c.sales_status)}`}>{c.sales_status || "진행중"}</span>
                 </div>
+                <div className="flex justify-center">
+                  <span className={`px-3 py-1 rounded-full border text-[11px] font-black ${getStatusTone(c.consult_status)}`}>{c.consult_status || "상담 대기"}</span>
+                </div>
+                <div className="text-sm text-slate-600 truncate font-medium">{c.sales_memo || "-"}</div>
+                <div className="text-right text-sm font-black text-slate-900">{formatCommission(c.sales_commission)}</div>
+                <div className="flex justify-center">
+                  <button onClick={(e) => confirmDelete(e, c)} className="h-9 w-9 flex items-center justify-center rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
-                <h2 className="mt-4 text-[2rem] font-black tracking-[-0.05em] text-slate-900">
-                  {selectedCustomer ? "고객 정보 수정" : "신규 고객 등록"}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  업체 정보와 상담/영업 진행 상황을 한 번에 관리합니다.
-                </p>
+        {/* Pagination */}
+        <div className="px-10 py-6 border-t border-slate-50 flex items-center justify-between">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Total {customers.length} Items</p>
+          <div className="flex items-center gap-2">
+            <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-20 transition-all"><ChevronLeft className="h-5 w-5"/></button>
+            <div className="px-4 py-2 rounded-xl bg-[#1e232d] text-sm font-bold text-white">{currentPage} / {totalPages}</div>
+            <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-20 transition-all"><ChevronRight className="h-5 w-5"/></button>
+          </div>
+        </div>
+      </section>
+
+      {/* 5. 상세 관리 모달 (고객 정보 노출 & 상담상태 매핑 보완) */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/40 p-6 backdrop-blur-xl scale-in">
+          <div className="relative max-h-[95vh] w-full max-w-5xl overflow-hidden rounded-[32px] bg-white shadow-2xl flex flex-col">
+            <div className="overflow-y-auto p-10 md:p-12 text-slate-900">
+              <div className="flex justify-between items-start mb-8 border-b border-slate-100 pb-8">
+                <div className="space-y-2">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black text-blue-600 border border-blue-100 uppercase tracking-widest">
+                    <BriefcaseBusiness className="h-3.5 w-3.5" /> 영업 성과 상세
+                  </div>
+                  <h2 className="text-3xl font-black">{selectedCustomer?.company_name}</h2>
+                </div>
+                <button onClick={() => setIsModalOpen(false)} className="h-10 w-10 flex items-center justify-center hover:bg-slate-100 rounded-full text-slate-400 transition-all"><X/></button>
               </div>
 
               <form onSubmit={handleSave} className="space-y-8">
-                <section className="rounded-[28px] border border-slate-200 bg-slate-50/70 p-6">
-                  <div className="mb-5 flex items-center gap-2">
-                    <div className="h-7 w-1 rounded-full bg-blue-500" />
-                    <h3 className="text-sm font-black tracking-[0.15em] text-slate-900">기본 정보</h3>
+                {/* [상단: 고객 정보 섹션] */}
+                <section className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6 bg-slate-50 rounded-[24px] border border-slate-100">
+                  <div className="space-y-1">
+                    <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest"><Building2 className="h-3 w-3"/> 업체명</label>
+                    <p className="font-bold text-sm">{selectedCustomer?.company_name || "-"}</p>
                   </div>
-
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    <label className="space-y-2">
-                      <span className="text-sm font-bold text-slate-700">업체명 <span className="text-rose-500">*</span></span>
-                      <input value={formData.company_name || ""} onChange={(e) => setFormData({ ...formData, company_name: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-bold text-slate-700">대표자명</span>
-                      <input value={formData.customer_name || ""} onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-bold text-slate-700">접수일</span>
-                      <input type="date" value={formData.receipt_date || ""} onChange={(e) => setFormData({ ...formData, receipt_date: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-bold text-slate-700">유선전화</span>
-                      <input value={formData.landline_phone || ""} onChange={(e) => setFormData({ ...formData, landline_phone: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-bold text-slate-700">핸드폰</span>
-                      <input value={formData.mobile_phone || ""} onChange={(e) => setFormData({ ...formData, mobile_phone: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-bold text-slate-700">주소</span>
-                      <input value={formData.address || ""} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" />
-                    </label>
-
-                    <label className="space-y-2 md:col-span-2 xl:col-span-3">
-                      <span className="text-sm font-bold text-slate-700">비고</span>
-                      <textarea value={formData.note || ""} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="min-h-[110px] w-full rounded-[18px] border border-slate-200 bg-white px-4 py-4 text-sm font-semibold text-slate-900 outline-none" />
-                    </label>
+                  <div className="space-y-1">
+                    <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest"><UserIcon className="h-3 w-3"/> 대표자</label>
+                    <p className="font-bold text-sm">{selectedCustomer?.customer_name || "-"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest"><Phone className="h-3 w-3"/> 연락처</label>
+                    <p className="font-bold text-sm">{selectedCustomer?.mobile_phone || "-"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest"><MapPin className="h-3 w-3"/> 주소</label>
+                    <p className="font-bold text-sm truncate" title={selectedCustomer?.address}>{selectedCustomer?.address || "-"}</p>
                   </div>
                 </section>
 
-                <section className="rounded-[28px] border border-slate-200 bg-slate-50/70 p-6">
-                  <div className="mb-5 flex items-center gap-2">
-                    <div className="h-7 w-1 rounded-full bg-emerald-500" />
-                    <h3 className="text-sm font-black tracking-[0.15em] text-slate-900">상담 정보</h3>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* [좌측: 상담 정보 - 관리자 수정 / 영업 읽기전용] */}
+                  <div className={`p-8 rounded-[30px] border ${isAdmin ? 'border-blue-100 bg-blue-50/20' : 'border-slate-100 bg-slate-50/50'}`}>
+                    <h3 className="text-sm font-black uppercase tracking-widest mb-6">상담 이력 {!isAdmin && "(읽기전용)"}</h3>
+                    <div className="space-y-5">
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">상담 상태</label>
+                        <select 
+                          disabled={!isAdmin} 
+                          value={formData.consult_status || ""} 
+                          onChange={e => setFormData({...formData, consult_status: e.target.value})} 
+                          className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-5 font-bold text-slate-900 outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
+                        >
+                          <option value="">상태 미지정</option>
+                          {consultCodes.map(c => (
+                            <option key={c.code_value} value={c.code_name}>{c.code_name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">상담 메모</label>
+                        <textarea 
+                          readOnly={!isAdmin} 
+                          value={formData.consult_memo || ""} 
+                          onChange={e => setFormData({...formData, consult_memo: e.target.value})} 
+                          className="min-h-[140px] w-full rounded-2xl border border-slate-200 bg-white p-5 font-bold text-slate-900 outline-none disabled:bg-slate-100 disabled:text-slate-400" 
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    <label className="space-y-2">
-                      <span className="text-sm font-bold text-slate-700">상담일자</span>
-                      <input type="date" value={formData.consult_date || ""} onChange={(e) => setFormData({ ...formData, consult_date: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-bold text-slate-700">상담 상태</span>
-                      <select value={formData.consult_status || ""} onChange={(e) => setFormData({ ...formData, consult_status: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none">
-                        <option value="">선택 안함</option>
-                        {consultCodes.map((c) => (
-                          <option key={c.code_value} value={c.code_name}>{c.code_name}</option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <div className="rounded-[18px] border border-dashed border-slate-200 bg-white px-4 py-4">
-                      <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">녹취 업로드</div>
-                      <div className="mt-2 text-sm font-semibold text-slate-700">
-                        {selectedCustomer ? "상담 녹취 파일을 등록할 수 있습니다." : "고객을 먼저 저장한 뒤 업로드할 수 있습니다."}
-                      </div>
-                      <button type="button" onClick={() => recordingInputRef.current?.click()} disabled={!selectedCustomer || isUploadingRecording} className="mt-3 inline-flex h-11 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-700 disabled:opacity-50">
-                        <Upload className="h-4 w-4" />
-                        {isUploadingRecording ? "업로드 중..." : "파일 업로드"}
-                      </button>
-                    </div>
-
-                    <label className="space-y-2 md:col-span-2 xl:col-span-3">
-                      <span className="text-sm font-bold text-slate-700">상담 메모</span>
-                      <textarea value={formData.consult_memo || ""} onChange={(e) => setFormData({ ...formData, consult_memo: e.target.value })} className="min-h-[110px] w-full rounded-[18px] border border-slate-200 bg-white px-4 py-4 text-sm font-semibold text-slate-900 outline-none" />
-                    </label>
-
-                    <div className="md:col-span-2 xl:col-span-3">
-                      <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-                        <div className="mb-4 flex items-center justify-between gap-3">
-                          <div>
-                            <div className="text-sm font-black text-slate-900">상담 녹취 파일</div>
-                            <div className="mt-1 text-xs text-slate-500">상세 고객 기준으로 업로드 및 삭제할 수 있습니다.</div>
-                          </div>
-                          <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{recordings.length}개 파일</div>
+                  {/* [우측: 영업 성과 입력 섹션 - 수당 숫자 처리] */}
+                  <div className="p-8 rounded-[30px] border border-emerald-100 bg-emerald-50/10 shadow-sm">
+                    <h3 className="text-sm font-black text-emerald-700 uppercase tracking-widest mb-6 text-emerald-700">영업 성과 기록</h3>
+                    <div className="space-y-5">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">영업 상태</label>
+                          <select value={formData.sales_status || ""} onChange={e => setFormData({...formData, sales_status: e.target.value})} className="h-12 w-full rounded-2xl border border-emerald-200 bg-white px-5 font-bold text-slate-900 outline-none focus:ring-2 ring-emerald-500/20">
+                            <option value="">상태 선택</option>
+                            {salesCodes.map(c => <option key={c.code_value} value={c.code_name}>{c.code_name}</option>)}
+                          </select>
                         </div>
-
-                        {isRecordingsLoading ? (
-                          <div className="space-y-3">
-                            {[1, 2].map((n) => (
-                              <div key={n} className="h-16 animate-pulse rounded-2xl border border-slate-100 bg-slate-50" />
-                            ))}
-                          </div>
-                        ) : recordings.length === 0 ? (
-                          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-5 py-8 text-center">
-                            <FileAudio className="mx-auto h-7 w-7 text-slate-300" />
-                            <div className="mt-3 text-sm font-bold text-slate-600">업로드된 녹취 파일이 없습니다.</div>
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            {recordings.map((recording) => (
-                              <div key={recording.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-4 md:flex-row md:items-center md:justify-between">
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <FileAudio className="h-4.5 w-4.5 flex-none text-violet-500" />
-                                    <div className="truncate text-sm font-black text-slate-800">{recording.file_name}</div>
-                                  </div>
-                                  <div className="mt-1 text-xs text-slate-500">
-                                    업로드일 {formatDate(recording.created_at)}
-                                    {recording.duration ? ` · 길이 ${recording.duration}` : ""}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <a href={recording.file_url} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700">
-                                    <ExternalLink className="h-4 w-4" />
-                                    열기
-                                  </a>
-                                  <button type="button" onClick={() => handleRecordingDelete(recording.id)} disabled={deletingRecordingId === recording.id} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-sm font-bold text-rose-600 disabled:opacity-50">
-                                    <Trash2 className="h-4 w-4" />
-                                    {deletingRecordingId === recording.id ? "삭제 중..." : "삭제"}
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">영업일자</label>
+                          <input type="date" value={formData.sales_date || ""} onChange={e => setFormData({...formData, sales_date: e.target.value})} className="h-12 w-full rounded-2xl border border-emerald-200 bg-white px-5 font-bold text-slate-900 outline-none focus:border-emerald-500" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">정산 수당 (₩)</label>
+                        <input 
+                          type="number" 
+                          value={formData.sales_commission === 0 ? "" : formData.sales_commission} 
+                          onChange={e => setFormData({...formData, sales_commission: e.target.value ? Number(e.target.value) : 0})} 
+                          placeholder="수당을 입력하세요 (숫자만)"
+                          className="h-12 w-full rounded-2xl border border-emerald-200 bg-white px-5 font-black text-emerald-600 outline-none focus:border-emerald-500" 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">영업 비고</label>
+                        <textarea value={formData.sales_memo || ""} onChange={e => setFormData({...formData, sales_memo: e.target.value})} placeholder="상세 계약 내용 및 특이사항..." className="min-h-[100px] w-full rounded-2xl border border-emerald-200 bg-white p-5 font-bold text-slate-900 outline-none focus:ring-2 ring-emerald-500/20 leading-relaxed" />
                       </div>
                     </div>
                   </div>
-                </section>
+                </div>
 
-                <section className="rounded-[28px] border border-slate-200 bg-slate-50/70 p-6">
-                  <div className="mb-5 flex items-center gap-2">
-                    <div className="h-7 w-1 rounded-full bg-violet-500" />
-                    <h3 className="text-sm font-black tracking-[0.15em] text-slate-900">영업 정보</h3>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    <label className="space-y-2">
-                      <span className="text-sm font-bold text-slate-700">영업담당</span>
-                      <select value={formData.sales_id || ""} onChange={(e) => setFormData({ ...formData, sales_id: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none">
-                        <option value="">선택 안함</option>
-                        {users.filter((u) => u.role_name === "영업").map((u) => (
-                          <option key={u.id} value={u.id}>{u.name}</option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-bold text-slate-700">영업일자</span>
-                      <input type="date" value={formData.sales_date || ""} onChange={(e) => setFormData({ ...formData, sales_date: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-bold text-slate-700">영업 상태</span>
-                      <select value={formData.sales_status || ""} onChange={(e) => setFormData({ ...formData, sales_status: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none">
-                        <option value="">선택 안함</option>
-                        {salesCodes.map((s) => (
-                          <option key={s.code_value} value={s.code_name}>{s.code_name}</option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-bold text-slate-700">영업수당</span>
-                      <input type="number" min={0} value={String(formData.sales_commission ?? 0)} onChange={(e) => setFormData({ ...formData, sales_commission: Number(e.target.value || 0) })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" />
-                    </label>
-
-                    <label className="space-y-2 md:col-span-2">
-                      <span className="text-sm font-bold text-slate-700">영업 메모</span>
-                      <textarea value={formData.sales_memo || ""} onChange={(e) => setFormData({ ...formData, sales_memo: e.target.value })} className="min-h-[110px] w-full rounded-[18px] border border-slate-200 bg-white px-4 py-4 text-sm font-semibold text-slate-900 outline-none" />
-                    </label>
-                  </div>
-                </section>
-
-                <div className="flex flex-col gap-4 rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">현재 상태</div>
-                    <div className="mt-2 text-sm font-semibold text-slate-600">
-                      접수일 {formatDate(formData.receipt_date || "-")} · 상담상태 {formData.consult_status || "미지정"} · 영업상태 {formData.sales_status || "미지정"}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-2xl border border-slate-200 bg-white px-8 py-4 text-sm font-bold text-slate-500">취소</button>
-                    <button type="submit" disabled={!String(formData.company_name || "").trim()} className="rounded-2xl bg-gradient-to-r from-slate-900 to-blue-600 px-10 py-4 text-sm font-black text-white disabled:opacity-60">
-                      저장
-                    </button>
-                  </div>
+                <div className="flex gap-4 pt-6 border-t border-slate-100">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="h-14 flex-1 rounded-2xl border border-slate-200 font-bold text-slate-400 hover:bg-slate-50 transition-all">취소</button>
+                  <button type="submit" className="h-14 flex-[2] rounded-2xl bg-[#1e232d] font-black text-white shadow-xl hover:bg-black transition-all">성과 업데이트 완료</button>
                 </div>
               </form>
             </div>
@@ -1133,25 +450,20 @@ export default function CustomersPage() {
         </div>
       )}
 
+      {/* 6. 삭제 확인 모달 */}
       {isDeleteModalOpen && (
-        <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-950/45 p-6 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-white p-10 text-center shadow-[0_40px_90px_rgba(15,23,42,0.25)] animate-in zoom-in-95 duration-300">
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-[26px] bg-rose-50 text-rose-500 shadow-inner">
-              <AlertTriangle className="h-9 w-9" />
-            </div>
-
-            <h3 className="text-[1.8rem] font-black tracking-[-0.05em] text-slate-900">고객 삭제</h3>
-            <p className="mt-3 text-sm leading-7 text-slate-500">
-              <span className="font-bold text-slate-800">{deleteTarget?.company_name || "-"}</span>
-              {" / "}
-              <span className="font-bold text-slate-800">{deleteTarget?.customer_name || "-"}</span>
-              <br />
-              고객 정보를 삭제하시겠습니까?
-            </p>
-
-            <div className="mt-8 flex flex-col gap-3">
-              <button type="button" onClick={confirmDelete} className="w-full rounded-2xl bg-rose-600 py-4 text-sm font-black text-white">삭제</button>
-              <button type="button" onClick={() => { setIsDeleteModalOpen(false); setDeleteTarget(null); }} className="w-full rounded-2xl border border-slate-200 bg-white py-4 text-sm font-bold text-slate-500">취소</button>
+        <div className="fixed inset-0 z-[11000] flex items-center justify-center bg-slate-950/40 backdrop-blur-md">
+          <div className="w-full max-w-sm rounded-[32px] bg-white p-10 text-center shadow-2xl scale-in">
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-[24px] bg-rose-50 text-rose-500 shadow-inner"><AlertTriangle className="h-10 w-10" /></div>
+            <h3 className="text-2xl font-black text-slate-900 tracking-tight">기록 삭제</h3>
+            <p className="mt-4 text-sm font-medium text-slate-400 leading-relaxed">이 영업 내역을 삭제하시겠습니까? <br/>삭제된 데이터는 복구할 수 없습니다.</p>
+            <div className="mt-10 flex flex-col gap-3">
+              <button onClick={async () => {
+                if (!deleteTarget) return;
+                const res = await fetch(`/api/customers/${deleteTarget.id}`, { method: "DELETE" });
+                if (res.ok) { setIsDeleteModalOpen(false); showToast("삭제 완료"); fetchData(); }
+              }} className="h-14 rounded-2xl bg-rose-600 font-black text-white hover:bg-rose-700 transition-all">삭제 확인</button>
+              <button onClick={() => setIsDeleteModalOpen(false)} className="h-14 rounded-2xl font-bold text-slate-400 hover:bg-slate-50 transition-all">취소</button>
             </div>
           </div>
         </div>

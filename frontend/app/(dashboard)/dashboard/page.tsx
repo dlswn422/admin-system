@@ -1,301 +1,180 @@
-import {
-  Activity,
-  ArrowUpRight,
-  BadgeCheck,
-  Clock3,
-  MenuSquare,
-  ShieldCheck,
-  UserPlus,
-  Users,
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { 
+  RotateCw, TrendingUp, Mic, BriefcaseBusiness, UserX, Users, 
+  Coins, CalendarDays, HelpCircle 
 } from "lucide-react";
 
-const statCards = [
-  {
-    label: "전체 사용자",
-    value: "128",
-    change: "이번 달 +12명",
-    icon: Users,
-    tone:
-      "from-blue-500/16 via-blue-500/8 to-transparent text-blue-600 ring-blue-500/20",
-  },
-  {
-    label: "활성 권한",
-    value: "36",
-    change: "최근 수정 +4건",
-    icon: ShieldCheck,
-    tone:
-      "from-violet-500/16 via-violet-500/8 to-transparent text-violet-600 ring-violet-500/20",
-  },
-  {
-    label: "등록 메뉴",
-    value: "18",
-    change: "신규 메뉴 +2개",
-    icon: MenuSquare,
-    tone:
-      "from-amber-500/16 via-amber-500/8 to-transparent text-amber-600 ring-amber-500/20",
-  },
-  {
-    label: "활성 세션",
-    value: "24",
-    change: "실시간 상태 정상",
-    icon: Activity,
-    tone:
-      "from-emerald-500/16 via-emerald-500/8 to-transparent text-emerald-600 ring-emerald-500/20",
-  },
-];
-
-const summaryCards = [
-  {
-    label: "오늘 등록 사용자",
-    value: "12",
-    desc: "어제 대비 +3",
-    icon: UserPlus,
-    tone: "text-blue-600 bg-blue-500/10 ring-blue-500/20",
-  },
-  {
-    label: "비활성 계정",
-    value: "4",
-    desc: "검토 필요",
-    icon: BadgeCheck,
-    tone: "text-amber-600 bg-amber-500/10 ring-amber-500/20",
-  },
-  {
-    label: "권한 수정 요청",
-    value: "7",
-    desc: "승인 대기",
-    icon: ShieldCheck,
-    tone: "text-violet-600 bg-violet-500/10 ring-violet-500/20",
-  },
-];
-
-const activityItems = [
-  {
-    type: "권한",
-    text: "사용자 권한이 수정되었습니다.",
-    time: "방금 전",
-    tone: "bg-blue-500",
-  },
-  {
-    type: "메뉴",
-    text: "신규 메뉴가 추가되었습니다.",
-    time: "12분 전",
-    tone: "bg-violet-500",
-  },
-  {
-    type: "계정",
-    text: "관리자 계정이 생성되었습니다.",
-    time: "32분 전",
-    tone: "bg-emerald-500",
-  },
-];
-
 export default function DashboardPage() {
+  const [data, setData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const [dateRange, setDateRange] = useState(() => {
+    const today = new Date();
+    const ago = new Date();
+    ago.setMonth(today.getMonth() - 1);
+    return { from: ago.toISOString().split('T')[0], to: today.toISOString().split('T')[0] };
+  });
+
+  const fetchStats = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/dashboard?from=${dateRange.from}&to=${dateRange.to}`);
+      if (!res.ok) throw new Error();
+      const json = await res.json();
+      setData(json);
+    } catch (err) { console.error(err); } 
+    finally { setIsLoading(false); }
+  }, [dateRange]);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  if (isLoading || !data) return (
+    <div className="flex h-[80vh] items-center justify-center bg-slate-50">
+      <RotateCw className="h-10 w-10 animate-spin text-indigo-500" />
+    </div>
+  );
+
   return (
-    <div className="space-y-6 md:space-y-8">
-      {/* 히어로 패널 */}
-      <section className="soft-scale-in">
-        <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(8,15,30,0.96),rgba(11,18,36,0.88))] p-6 shadow-[0_28px_70px_rgba(2,6,23,0.18)] backdrop-blur-2xl md:p-8">
-          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),transparent_34%,transparent_72%,rgba(59,130,246,0.06))]" />
-          <div className="absolute -left-12 top-0 h-40 w-40 rounded-full bg-blue-500/12 blur-3xl" />
-          <div className="absolute right-0 top-0 h-44 w-44 rounded-full bg-violet-500/10 blur-3xl" />
-          <div className="absolute bottom-0 left-1/3 h-32 w-32 rounded-full bg-cyan-400/10 blur-3xl" />
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-
-          <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-3xl">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-400/15 bg-blue-500/10 px-3 py-1.5 text-[11px] font-semibold tracking-[0.18em] text-blue-200">
-                <Clock3 className="h-3.5 w-3.5" />
-                실시간 운영 현황
-              </div>
-
-              <h2 className="text-[1.9rem] font-black leading-[1.02] tracking-[-0.05em] text-white md:text-[2.4rem]">
-                통합 운영 대시보드
-              </h2>
-
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 md:text-[15px]">
-                사용자, 권한, 메뉴, 세션 상태를 한눈에 확인하고 즉시 대응할 수
-                있는 운영 중심 화면입니다. 주요 변화 흐름과 실시간 상태를 빠르게
-                파악할 수 있도록 구성했습니다.
-              </p>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[360px]">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-4 shadow-[0_14px_28px_rgba(2,6,23,0.16)] backdrop-blur-xl">
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-70 [animation:dot-ping-soft_1.8s_ease-out_infinite]" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                  </span>
-                  정상 운영 중
-                </div>
-                <p className="mt-2 text-sm text-slate-300">
-                  전체 운영 시스템이 안정적으로 유지되고 있습니다.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-4 shadow-[0_14px_28px_rgba(2,6,23,0.16)] backdrop-blur-xl">
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                  <ArrowUpRight className="h-4 w-4 text-blue-300" />
-                  실시간 반영
-                </div>
-                <p className="mt-2 text-sm text-slate-300">
-                  최신 사용자/권한 변경 내역이 즉시 반영됩니다.
-                </p>
-              </div>
-            </div>
+    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 font-sans antialiased tracking-tight text-slate-900">
+      <div className="mx-auto max-w-[1600px] space-y-8">
+        
+        {/* 1. 헤더 - 폰트 위계 강조 */}
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-2">
+          <div className="space-y-1.5">
+            <h1 className="text-4xl font-black tracking-tighter text-slate-900 lg:text-5xl">
+              실적 대시보드
+            </h1>
+            <p className="text-slate-500 font-semibold text-sm tracking-[0.15em] uppercase opacity-80">
+              Business Performance Analytics
+            </p>
           </div>
-        </div>
-      </section>
-
-      {/* 통계 카드 */}
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {statCards.map((card, index) => {
-          const Icon = card.icon;
-
-          return (
-            <div
-              key={card.label}
-              className="fade-up group relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50/95 p-5 shadow-[0_12px_30px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_45px_rgba(15,23,42,0.1)]"
-              style={{ animationDelay: `${index * 70}ms` }}
-            >
-              <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.65),transparent_36%,transparent_72%,rgba(59,130,246,0.03))]" />
-              <div
-                className={`absolute -right-6 -top-8 h-28 w-28 rounded-full bg-gradient-to-br ${card.tone.split(" ")[0]} ${card.tone.split(" ")[1]} ${card.tone.split(" ")[2]} blur-2xl`}
-              />
-
-              <div className="relative">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-slate-500">
-                      {card.label}
-                    </p>
-                    <p className="mt-3 text-[2rem] font-black leading-none tracking-[-0.05em] text-slate-900">
-                      {card.value}
-                    </p>
-                  </div>
-
-                  <div
-                    className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${card.tone} ring-1 shadow-inner`}
-                  >
-                    <Icon className="h-5 w-5" />
-                  </div>
-                </div>
-
-                <div className="mt-5 flex items-center justify-between">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-                    {card.change}
-                  </span>
-                </div>
+          
+          <div className="flex items-center gap-2 bg-white p-2 rounded-2xl shadow-sm border border-slate-200/60">
+            <div className="flex items-center gap-3 px-4 py-2 bg-slate-50/80 rounded-xl border border-slate-100">
+              <CalendarDays className="h-4 w-4 text-slate-400" />
+              <div className="flex items-center gap-2 text-[13px] font-bold text-slate-700 tabular-nums">
+                <input type="date" value={dateRange.from} onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })} className="bg-transparent outline-none cursor-pointer" />
+                <span className="text-slate-300 font-medium">~</span>
+                <input type="date" value={dateRange.to} onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })} className="bg-transparent outline-none cursor-pointer" />
               </div>
             </div>
-          );
-        })}
-      </section>
-
-      {/* 하단 섹션 */}
-      <section className="grid gap-6 xl:grid-cols-3">
-        {/* 운영 요약 */}
-        <div className="fade-up rounded-[30px] border border-slate-200/80 bg-white/95 p-6 shadow-[0_16px_36px_rgba(15,23,42,0.06)] xl:col-span-2">
-          <div className="mb-6 flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-[1.2rem] font-bold tracking-[-0.03em] text-slate-900">
-                운영 요약
-              </h3>
-              <p className="mt-1 text-sm text-slate-500">
-                오늘 기준 주요 운영 지표를 빠르게 확인할 수 있습니다.
-              </p>
-            </div>
-            <button className="rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-[15px] font-black tracking-[-0.02em] text-slate-800 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-slate-50">
-              상세보기
+            <button onClick={fetchStats} className="h-10 px-5 rounded-xl bg-slate-900 text-white font-bold text-sm hover:bg-indigo-600 transition-all duration-300 flex items-center gap-2 shadow-sm">
+              <RotateCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+              조회
             </button>
           </div>
+        </header>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            {summaryCards.map((item, index) => {
-              const Icon = item.icon;
-
-              return (
-                <div
-                  key={item.label}
-                  className="group rounded-[24px] border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(15,23,42,0.08)]"
-                  style={{ animationDelay: `${120 + index * 70}ms` }}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div
-                      className={`flex h-11 w-11 items-center justify-center rounded-2xl ring-1 ${item.tone}`}
-                    >
-                      <Icon className="h-5 w-5" />
-                    </div>
-
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-                      오늘 기준
-                    </span>
-                  </div>
-
-                  <p className="mt-5 text-sm font-medium text-slate-500">
-                    {item.label}
-                  </p>
-                  <p className="mt-2 text-[1.85rem] font-black leading-none tracking-[-0.05em] text-slate-900">
-                    {item.value}
-                  </p>
-                  <p className="mt-3 text-sm font-medium text-slate-400">
-                    {item.desc}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 최근 활동 */}
-        <div className="fade-up rounded-[30px] border border-slate-200/80 bg-white/95 p-6 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
-          <div className="mb-6 flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-[1.2rem] font-bold tracking-[-0.03em] text-slate-900">
-                최근 활동
-              </h3>
-              <p className="mt-1 text-sm text-slate-500">
-                최근 시스템 변경 이력을 확인하세요.
+        {/* 2. 요약 카드 - 수치 가독성 상향 */}
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: "전체 접수", value: data.summary.total, unit: "건", color: "bg-blue-600" },
+            { label: "수당 합계", value: data.summary.totalCommission.toLocaleString(), unit: "원", color: "bg-emerald-600" },
+            { label: "TM 미배정", value: data.summary.unassignedTM, unit: "건", color: "bg-rose-500" },
+            { label: "영업 미배정", value: data.summary.unassignedSales, unit: "건", color: "bg-orange-500" },
+          ].map((item, i) => (
+            <div key={i} className="bg-white border border-slate-100 rounded-[24px] p-6 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+              <div className={`absolute top-0 left-0 h-full w-1.5 ${item.color}`} />
+              <p className="text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{item.label}</p>
+              <p className="text-3xl font-black text-slate-900 tabular-nums">
+                {item.value}
+                <span className="text-sm font-bold text-slate-400 ml-1.5 tracking-normal opacity-70">{item.unit}</span>
               </p>
             </div>
+          ))}
+        </section>
 
-            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              LIVE
-            </span>
+        {/* 3. 상담사 현황 (TM) */}
+        <div className="space-y-5">
+          <div className="flex items-center gap-2.5 px-2">
+            <div className="h-7 w-7 rounded-lg bg-indigo-100 flex items-center justify-center shadow-inner">
+              <Mic className="h-4 w-4 text-indigo-600" />
+            </div>
+            <h2 className="font-extrabold text-xl text-slate-800 tracking-tight">상담사별 업무 현황</h2>
+          </div>
+          
+          {data.tmList.map((tm: any, i: number) => (
+            <div key={i} className="bg-white rounded-[32px] border border-slate-200/70 p-6 flex flex-col xl:flex-row items-center gap-8 shadow-sm hover:border-indigo-200 transition-all group">
+              <div className="w-full xl:w-52 shrink-0 flex items-center gap-5">
+                <div className="h-14 w-14 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center font-black text-slate-400 text-base group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-colors tabular-nums shadow-sm">
+                  {String(i+1).padStart(2, '0')}
+                </div>
+                <div className="space-y-1">
+                  <p className="font-black text-xl text-slate-900">{tm.name}</p>
+                  <p className="text-[12px] font-bold text-indigo-500 bg-indigo-50/50 px-2 py-0.5 rounded-md inline-block">
+                    배정 {tm.total}건
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex-1 w-full grid grid-cols-3 md:grid-cols-6 gap-3">
+                {data.headers.consult.map((h: string) => {
+                  const count = tm.statusCounts[h] || 0;
+                  const isPending = h === "미지정";
+                  return (
+                    <div key={h} className={`rounded-2xl p-4 border transition-all duration-300 ${count > 0 ? (isPending ? 'bg-amber-50/60 border-amber-200 shadow-sm' : 'bg-indigo-50/60 border-indigo-100 shadow-sm') : 'bg-slate-50/40 border-slate-100/50'}`}>
+                      <div className="flex justify-between items-center mb-2">
+                        <p className={`text-[11px] font-extrabold ${count > 0 ? (isPending ? 'text-amber-700' : 'text-indigo-700') : 'text-slate-500'}`}>{h}</p>
+                        {isPending && count > 0 && <HelpCircle className="h-3.5 w-3.5 text-amber-500 animate-pulse" />}
+                      </div>
+                      <p className={`text-2xl font-black tabular-nums leading-none ${count > 0 ? 'text-slate-900' : 'text-slate-300'}`}>
+                        {count}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 4. 영업사원 현황 (Sales) */}
+        <div className="space-y-5">
+          <div className="flex items-center gap-2.5 px-2">
+            <div className="h-7 w-7 rounded-lg bg-emerald-100 flex items-center justify-center shadow-inner">
+              <BriefcaseBusiness className="h-4 w-4 text-emerald-600" />
+            </div>
+            <h2 className="font-extrabold text-xl text-slate-800 tracking-tight">영업사원별 실적 그리드</h2>
           </div>
 
-          <ul className="space-y-3">
-            {activityItems.map((item, index) => (
-              <li
-                key={`${item.type}-${index}`}
-                className="group rounded-[22px] border border-slate-200/70 bg-gradient-to-br from-slate-50 to-white px-4 py-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-300/80 hover:shadow-[0_10px_22px_rgba(15,23,42,0.05)]"
-                style={{ animationDelay: `${160 + index * 70}ms` }}
-              >
-                <div className="flex items-start gap-3">
-                  <span
-                    className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${item.tone} shadow-[0_0_10px_rgba(59,130,246,0.22)]`}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1 flex items-center justify-between gap-3">
-                      <span className="text-xs font-semibold tracking-[0.08em] text-slate-400">
-                        {item.type}
-                      </span>
-                      <span className="text-xs font-medium text-slate-400">
-                        {item.time}
-                      </span>
-                    </div>
-                    <p className="text-sm font-medium leading-6 text-slate-700">
-                      {item.text}
-                    </p>
+          {data.salesList.map((sales: any, i: number) => (
+            <div key={i} className="bg-white rounded-[32px] border border-slate-200/70 p-7 flex flex-col xl:flex-row gap-8 shadow-sm hover:border-emerald-200 transition-all group">
+              <div className="xl:w-64 shrink-0 space-y-5">
+                <div className="flex items-center gap-5">
+                  <div className="h-16 w-16 rounded-[22px] bg-emerald-500 flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-emerald-200/50 group-hover:scale-105 transition-transform">
+                    {sales.name[0]}
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-black text-2xl text-slate-900 tracking-tight">{sales.name}</p>
+                    <p className="text-sm font-bold text-emerald-600 tabular-nums">수당 ₩{sales.commission.toLocaleString()}</p>
                   </div>
                 </div>
-              </li>
-            ))}
-          </ul>
+                <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 flex justify-between items-center shadow-inner">
+                  <span className="text-[12px] font-bold text-slate-500">전체 배정</span>
+                  <span className="font-black text-slate-900 text-base tabular-nums">{sales.total}<span className="text-xs font-bold ml-0.5 text-slate-400">건</span></span>
+                </div>
+              </div>
+
+              <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-3">
+                {data.headers.sales.map((h: string) => {
+                  const count = sales.statusCounts[h] || 0;
+                  const isPending = h === "미지정";
+                  return (
+                    <div key={h} className={`rounded-2xl p-4 border transition-all duration-300 flex flex-col justify-center ${count > 0 ? (isPending ? 'bg-amber-50/60 border-amber-200 shadow-sm' : 'bg-emerald-50/60 border-emerald-100 shadow-sm') : 'bg-slate-50/40 border-slate-100/50'}`}>
+                      <p className={`text-[11px] font-extrabold mb-2 leading-tight ${count > 0 ? (isPending ? 'text-amber-700' : 'text-emerald-700') : 'text-slate-500'}`}>{h}</p>
+                      <p className={`text-2xl font-black tabular-nums leading-none ${count > 0 ? 'text-slate-900' : 'text-slate-300'}`}>
+                        {count}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
-      </section>
+      </div>
     </div>
   );
 }

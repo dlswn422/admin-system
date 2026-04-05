@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     const { name, email, phone, role_id, password, is_active } = body;
 
     // 데이터 유효성 검사 (최소한의 방어 로직)
-    if (!name || !email) {
+    if (!name) {
       return NextResponse.json({ error: "이름과 이메일은 필수 항목입니다." }, { status: 400 });
     }
 

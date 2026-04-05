@@ -176,17 +176,17 @@ export default function UsersPage() {
 
   // --- Handlers: Modal Control ---
   const openModal = (user: User | null = null) => {
-    if (user) {
-      setSelectedUser(user);
-      setFormData({
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role_id: user.role_id,
-        password: "",
-        is_active: user.is_active,
-      });
-    } else {
+  if (user) {
+    setSelectedUser(user);
+    setFormData({
+      name: user.name,
+      email: user.email || "",  // ✅ null 방어
+      phone: user.phone || "",  // ✅ 연락처도 null일 수 있으므로 추가 권장
+      role_id: user.role_id,
+      password: "",
+      is_active: user.is_active,
+    });
+  } else {
       setSelectedUser(null);
       setFormData({
         name: "",
@@ -207,12 +207,18 @@ export default function UsersPage() {
     const isEdit = !!selectedUser;
 
     try {
+      const submissionData = {
+        ...formData,
+        // 이메일이 비어있으면 null로, 아니면 앞뒤 공백 제거 후 전송
+        email: formData.email.trim() === "" ? null : formData.email.trim() 
+      };
+
       const res = await fetch(
         isEdit ? `/api/users/${selectedUser?.id}` : "/api/users",
         {
           method: isEdit ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(submissionData), // 가공된 데이터 전송
         }
       );
 
@@ -280,11 +286,10 @@ export default function UsersPage() {
       {/* 1. Toast Notification */}
       {toast && (
         <div
-          className={`fixed right-6 top-6 z-[11000] flex items-center gap-3 rounded-[22px] border border-white/10 px-5 py-4 shadow-[0_24px_50px_rgba(15,23,42,0.2)] backdrop-blur-2xl animate-in slide-in-from-right-8 duration-300 ${
-            toast.type === "success"
+          className={`fixed right-6 top-6 z-[11000] flex items-center gap-3 rounded-[22px] border border-white/10 px-5 py-4 shadow-[0_24px_50px_rgba(15,23,42,0.2)] backdrop-blur-2xl animate-in slide-in-from-right-8 duration-300 ${toast.type === "success"
               ? "bg-slate-900/90 text-white"
               : "bg-rose-600/90 text-white"
-          }`}
+            }`}
         >
           <div className="h-2.5 w-2.5 rounded-full bg-current animate-pulse" />
           <p className="text-sm font-bold tracking-[-0.02em]">{toast.message}</p>
@@ -325,9 +330,8 @@ export default function UsersPage() {
                 aria-label="새로고침"
               >
                 <RotateCw
-                  className={`h-5 w-5 transition-transform duration-500 ${
-                    isLoading ? "animate-spin" : "group-hover:rotate-180"
-                  }`}
+                  className={`h-5 w-5 transition-transform duration-500 ${isLoading ? "animate-spin" : "group-hover:rotate-180"
+                    }`}
                 />
               </button>
 
@@ -585,7 +589,13 @@ export default function UsersPage() {
                   <div className="grid gap-5 md:grid-cols-2">
                     <div>
                       <label className="mb-2 block text-sm font-semibold text-slate-600 uppercase tracking-tighter">이메일 계정</label>
-                      <div className="relative"><Mail className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" /><input required type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-5 text-sm font-semibold text-slate-900 focus:bg-white transition-all" placeholder="ex) user@company.com" /></div>
+                      <div className="relative"><Mail className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" /><input
+                        type="email" // required 삭제
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-5 text-sm font-semibold text-slate-900 focus:bg-white transition-all"
+                        placeholder="이메일 (선택 사항)"
+                      /></div>
                     </div>
                     <div>
                       <label className="mb-2 block text-sm font-semibold text-slate-600 uppercase tracking-tighter">비밀번호</label>

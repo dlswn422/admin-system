@@ -9,8 +9,7 @@ export async function POST(request: Request) {
   try {
     const { name, password } = await request.json();
 
-    // 1. 유저 정보 및 역할(Role) 정보 Join 조회
-    // 💡 role_id를 가져오는 것은 물론, roles 테이블과 조인하여 역할 이름도 함께 가져옵니다.
+    // 1. 유저 정보 조회 (is_active 포함)
     const { data: user, error } = await supabase
       .from("users")
       .select(`
@@ -18,6 +17,7 @@ export async function POST(request: Request) {
         name, 
         password_hash,
         role_id,
+        is_active,
         roles (
           name
         )
@@ -25,7 +25,6 @@ export async function POST(request: Request) {
       .eq("name", name.trim())
       .maybeSingle();
 
-    // 사용자가 존재하지 않거나 DB 에러 발생 시
     if (error || !user) {
       return NextResponse.json(
         { error: "등록되지 않은 관리자 계정입니다." },
@@ -33,7 +32,15 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. 비밀번호 체크 (일반 텍스트 비교 방식 유지)
+    // 2. 계정 활성화 상태 체크
+    if (user.is_active === false) {
+      return NextResponse.json(
+        { error: "비활성화된 계정입니다. 관리자에게 문의하세요." },
+        { status: 403 }
+      );
+    }
+
+    // 3. 비밀번호 체크
     if (user.password_hash !== password) {
       return NextResponse.json(
         { error: "비밀번호가 일치하지 않습니다." },
@@ -41,14 +48,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. 로그인 성공 응답
+    // 4. 로그인 성공 응답
     return NextResponse.json({
       success: true,
       user: { 
         id: user.id, 
         name: user.name,
         role_id: user.role_id,
-        // 💡 아래와 같이 수정: 배열인지 체크하거나 타입을 강제 지정합니다.
         role_name: Array.isArray(user.roles) 
           ? user.roles[0]?.name 
           : (user.roles as any)?.name || "권한 미정"

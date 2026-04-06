@@ -229,7 +229,7 @@ export default function SalesManagementPage() {
         {[
           { label: "배정 고객수", value: stats.total, icon: Users, color: "text-blue-600 bg-blue-50" },
           { label: "계약 완료", value: stats.completed, icon: UserCheck, color: "text-emerald-600 bg-emerald-50" },
-          { label: "예상 수당 총액", value: formatCommission(stats.totalCommission), icon: Wallet, color: "text-violet-600 bg-violet-50" },
+          { label: "예상 매출 총액", value: formatCommission(stats.totalCommission), icon: Wallet, color: "text-violet-600 bg-violet-50" },
         ].map((stat, i) => (
           <div key={i} className="flex items-center justify-between rounded-[24px] border border-slate-200 bg-white p-8 shadow-sm">
             <div>
@@ -297,7 +297,7 @@ export default function SalesManagementPage() {
               <span className="text-center">영업상태</span>
               <span className="text-center">상담상태</span>
               <span>영업 메모</span>
-              <span className="text-right">수당</span>
+              <span className="text-right">매출</span>
               <span className="text-center">삭제</span>
             </div>
             {isLoading ? (
@@ -423,12 +423,12 @@ export default function SalesManagementPage() {
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">정산 수당 (₩)</label>
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">정산 매출 (₩)</label>
                         <input 
                           type="number" 
                           value={formData.sales_commission === 0 ? "" : formData.sales_commission} 
                           onChange={e => setFormData({...formData, sales_commission: e.target.value ? Number(e.target.value) : 0})} 
-                          placeholder="수당을 입력하세요 (숫자만)"
+                          placeholder="매출을 입력하세요 (숫자만)"
                           className="h-12 w-full rounded-2xl border border-emerald-200 bg-white px-5 font-black text-emerald-600 outline-none focus:border-emerald-500" 
                         />
                       </div>

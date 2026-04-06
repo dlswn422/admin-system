@@ -33,6 +33,7 @@ export default function LoginPage() {
           role: data.user.role_name || "시스템 관리자",
           role_id: data.user.role_id,
           role_name: data.user.role_name, // ✅ 그대로 사용
+          id: data.user.id,
         };
         localStorage.setItem("user", JSON.stringify(userData));
 

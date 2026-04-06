@@ -31,7 +31,8 @@ export default function LoginPage() {
         const userData = {
           name: data.user.name,
           role: data.user.role_name || "시스템 관리자",
-          role_id: data.user.role_id
+          role_id: data.user.role_id,
+          role_name: data.user.role_name, // ✅ 그대로 사용
         };
         localStorage.setItem("user", JSON.stringify(userData));
 

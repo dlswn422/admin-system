@@ -679,7 +679,6 @@ textarea::placeholder {
   .profile-card { padding: 5px 6px 5px 10px; border-radius: 18px; }
   .profile-avatar { width: 38px; height: 38px; border-radius: 14px; }
 }
-
 /* ===== 공통 드롭다운 ===== */
 .app-select {
   width: 100%;

@@ -8,7 +8,6 @@ import {
   Trash2,
   Database,
   X,
-  ChevronRight,
   Hash,
   Layers,
   LayoutGrid,
@@ -23,6 +22,7 @@ import {
   Filter,
   AlertTriangle,
 } from "lucide-react";
+
 
 // --- Interfaces ---
 interface CodeGroup {
@@ -526,10 +526,13 @@ export default function CodesPage() {
                   </div>
                   <div className="relative">
                     <Filter className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" />
-                    <select value={detailStatusFilter} onChange={(e) => setDetailStatusFilter(e.target.value as any)} className="w-full appearance-none rounded-[20px] border border-slate-200 bg-slate-50/80 py-4 pl-12 pr-12 text-sm font-semibold outline-none focus:bg-white">
+                    <select
+                      value={detailStatusFilter}
+                      onChange={(e) => setDetailStatusFilter(e.target.value as any)}
+                      className="app-select app-select-lg app-select-with-icon w-full"
+                    >
                       <option value="all">전체 상태</option><option value="active">사용</option><option value="inactive">미사용</option>
                     </select>
-                    <ChevronRight className="pointer-events-none absolute right-5 top-1/2 h-4 w-4 -translate-y-1/2 rotate-90 text-slate-300" />
                   </div>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600"><Sparkles className="h-4 w-4" />{detailSummaryText}</div>

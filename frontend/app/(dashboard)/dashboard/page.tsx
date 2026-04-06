@@ -41,7 +41,7 @@ export default function DashboardPage() {
       <div className="mx-auto max-w-[1600px] space-y-8">
         
         {/* 1. 헤더 - 폰트 위계 강조 */}
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-2">
+        <header className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 px-2">
           <div className="space-y-1.5">
             <h1 className="text-4xl font-black tracking-tighter text-slate-900 lg:text-5xl">
               실적 대시보드
@@ -51,17 +51,30 @@ export default function DashboardPage() {
             </p>
           </div>
           
-          <div className="flex items-center gap-2 bg-white p-2 rounded-2xl shadow-sm border border-slate-200/60">
-            <div className="flex items-center gap-3 px-4 py-2 bg-slate-50/80 rounded-xl border border-slate-100">
-              <CalendarDays className="h-4 w-4 text-slate-400" />
-              <div className="flex items-center gap-2 text-[13px] font-bold text-slate-700 tabular-nums">
-                <input type="date" value={dateRange.from} onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })} className="bg-transparent outline-none cursor-pointer" />
-                <span className="text-slate-300 font-medium">~</span>
-                <input type="date" value={dateRange.to} onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })} className="bg-transparent outline-none cursor-pointer" />
+          <div className="flex w-full flex-col gap-2 rounded-2xl border border-slate-200/60 bg-white p-2 shadow-sm sm:flex-row sm:items-center xl:w-auto">
+            <div className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-2">
+              <CalendarDays className="h-4 w-4 shrink-0 text-slate-400" />
+              <div className="flex min-w-0 flex-wrap items-center gap-2 text-[13px] font-bold tabular-nums text-slate-700 sm:flex-nowrap">
+                <input
+                  type="date"
+                  value={dateRange.from}
+                  onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
+                  className="min-w-0 cursor-pointer bg-transparent outline-none"
+                />
+                <span className="shrink-0 font-medium text-slate-300">~</span>
+                <input
+                  type="date"
+                  value={dateRange.to}
+                  onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
+                  className="min-w-0 cursor-pointer bg-transparent outline-none"
+                />
               </div>
             </div>
-            <button onClick={fetchStats} className="h-10 px-5 rounded-xl bg-slate-900 text-white font-bold text-sm hover:bg-indigo-600 transition-all duration-300 flex items-center gap-2 shadow-sm">
-              <RotateCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <button
+              onClick={fetchStats}
+              className="flex h-10 min-w-[96px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-slate-900 px-5 text-sm font-bold text-white shadow-sm transition-all duration-300 hover:bg-indigo-600"
+            >
+              <RotateCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
               조회
             </button>
           </div>

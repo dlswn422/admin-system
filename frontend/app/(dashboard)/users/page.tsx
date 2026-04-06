@@ -9,7 +9,6 @@ import {
   Users,
   Mail,
   Phone,
-  ChevronDown,
   Filter,
   Trash2,
   Edit3,
@@ -426,7 +425,7 @@ export default function UsersPage() {
               <select
                 value={selectedRoleFilter}
                 onChange={(e) => setSelectedRoleFilter(e.target.value)}
-                className="w-full appearance-none rounded-[20px] border border-slate-200/80 bg-slate-50/80 py-4 pl-12 pr-12 text-sm font-semibold text-slate-900 outline-none transition-all focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                className="app-select app-select-lg app-select-with-icon w-full"
               >
                 <option value="all">모든 권한 그룹</option>
                 {roles.map((role) => (
@@ -435,7 +434,6 @@ export default function UsersPage() {
                   </option>
                 ))}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-300" />
             </div>
           </div>
 
@@ -466,11 +464,11 @@ export default function UsersPage() {
           </div>
         </div>
 
-        <div className="px-4 py-4 md:px-6 md:py-5 overflow-x-auto scrollbar-hide">
-          <div className="hidden rounded-2xl bg-slate-50 px-5 py-3 text-[11px] font-bold tracking-[0.12em] text-slate-400 md:grid md:grid-cols-[minmax(320px,1.5fr)_160px_160px_160px] md:items-center md:gap-4 uppercase">
+        <div className="px-4 py-4 md:px-6 md:py-5">
+          <div className="hidden rounded-2xl bg-slate-50 px-5 py-3 text-[11px] font-bold tracking-[0.12em] text-slate-400 uppercase xl:grid xl:grid-cols-[minmax(0,1.7fr)_160px_170px_190px] xl:items-center xl:gap-6">
             <span>사용자 정보</span>
-            <span>권한 그룹</span>
-            <span>계정 상태</span>
+            <span className="text-center">권한 그룹</span>
+            <span className="text-center">계정 상태</span>
             <span className="text-right">작업</span>
           </div>
 
@@ -501,8 +499,8 @@ export default function UsersPage() {
                   className="group rounded-[24px] border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 px-5 py-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)]"
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
-                  <div className="grid gap-4 md:grid-cols-[minmax(320px,1.5fr)_160px_160px_160px] md:items-center">
-                    <div className="flex items-start gap-4">
+                  <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_160px_170px_190px] xl:items-center xl:gap-6">
+                    <div className="flex min-w-0 items-start gap-4">
                       <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-[linear-gradient(135deg,#13233F_0%,#0B1730_100%)] text-2xl font-black text-white shadow-lg">
                         {user.name[0]}
                       </div>
@@ -517,7 +515,7 @@ export default function UsersPage() {
                           </span>
                         </div>
 
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <div className="mt-3 grid gap-2 2xl:grid-cols-2">
                           <div className="inline-flex items-center gap-2 rounded-xl bg-slate-50/50 px-3 py-2 text-sm font-medium text-slate-600 border border-slate-100">
                             <Mail className="h-4 w-4 text-slate-400" />
                             <span className="truncate">{user.email}</span>
@@ -530,28 +528,63 @@ export default function UsersPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center md:justify-center">
-                      <span className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-[11px] font-black tracking-widest uppercase transition-all duration-300 ${getRoleStyle(user.role_name)}`}>
-                        <ShieldCheck className="h-3.5 w-3.5" />
-                        {user.role_name}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center md:justify-center">
-                      <div className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-black tracking-[0.1em] ${user.is_active ? "bg-emerald-50 text-emerald-600 shadow-sm shadow-emerald-100" : "bg-rose-50 text-rose-500 shadow-sm shadow-rose-100"}`}>
-                        <div className={`h-1.5 w-1.5 rounded-full ${user.is_active ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
-                        {user.is_active ? "ACTIVE" : "DISABLED"}
+                    <div className="space-y-2 xl:space-y-0">
+                      <p className="text-[11px] font-bold tracking-[0.12em] text-slate-400 uppercase xl:hidden">
+                        권한 그룹
+                      </p>
+                      <div className="flex items-center xl:justify-center">
+                        <span
+                          className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-[11px] font-black tracking-widest uppercase transition-all duration-300 ${getRoleStyle(
+                            user.role_name
+                          )}`}
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                          {user.role_name}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-end gap-2 relative z-50">
-                      <button onClick={() => openModal(user)} className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-bold text-white transition-all hover:bg-blue-600 active:scale-95 shadow-md shadow-slate-200">
-                        <Edit3 className="h-4 w-4" />
-                        <span>수정</span>
-                      </button>
-                      <button onClick={() => openDeleteModal(user)} className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-100 bg-white text-rose-300 hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-95 shadow-sm">
-                        <Trash2 className="h-4.5 w-4.5" />
-                      </button>
+                    <div className="space-y-2 xl:space-y-0">
+                      <p className="text-[11px] font-bold tracking-[0.12em] text-slate-400 uppercase xl:hidden">
+                        계정 상태
+                      </p>
+                      <div className="flex items-center xl:justify-center">
+                        <div
+                          className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-black tracking-[0.1em] ${
+                            user.is_active
+                              ? "bg-emerald-50 text-emerald-600 shadow-sm shadow-emerald-100"
+                              : "bg-rose-50 text-rose-500 shadow-sm shadow-rose-100"
+                          }`}
+                        >
+                          <div
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              user.is_active ? "bg-emerald-500 animate-pulse" : "bg-rose-500"
+                            }`}
+                          />
+                          {user.is_active ? "ACTIVE" : "DISABLED"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 xl:space-y-0">
+                      <p className="text-[11px] font-bold tracking-[0.12em] text-slate-400 uppercase xl:hidden">
+                        작업
+                      </p>
+                      <div className="relative z-50 flex items-center justify-start gap-2 xl:justify-end">
+                        <button
+                          onClick={() => openModal(user)}
+                          className="inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-slate-900 px-5 text-sm font-bold text-white shadow-md shadow-slate-200 transition-all hover:bg-blue-600 active:scale-95"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                          <span>수정</span>
+                        </button>
+                        <button
+                          onClick={() => openDeleteModal(user)}
+                          className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-rose-100 bg-white text-rose-300 shadow-sm transition-all hover:bg-rose-50 hover:text-rose-600 active:scale-95"
+                        >
+                          <Trash2 className="h-4.5 w-4.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -605,7 +638,20 @@ export default function UsersPage() {
 
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-slate-600 uppercase tracking-tighter">권한 그룹 지정</label>
-                    <div className="relative"><ShieldCheck className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" /><select value={formData.role_id} onChange={(e) => setFormData({ ...formData, role_id: e.target.value })} className="h-14 w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-12 font-bold text-slate-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all">{roles.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}</select><ChevronDown className="absolute right-5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /></div>
+                    <div className="relative">
+                      <ShieldCheck className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" />
+                      <select
+                        value={formData.role_id}
+                        onChange={(e) => setFormData({ ...formData, role_id: e.target.value })}
+                        className="app-select app-select-lg app-select-with-icon w-full"
+                      >
+                        {roles.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   <button type="button" onClick={() => setFormData({ ...formData, is_active: !formData.is_active })} className={`w-full h-20 flex items-center justify-between px-8 rounded-[24px] border-2 transition-all ${formData.is_active ? "bg-blue-50/50 border-blue-200 text-blue-700 shadow-sm" : "bg-slate-50 border-slate-200 text-slate-400"}`}>

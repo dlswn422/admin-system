@@ -676,11 +676,11 @@ export default function CustomersPage() {
         <div className="grid items-start gap-3 xl:grid-cols-[180px_minmax(0,1fr)_260px]">
           <div className="relative self-start">
             <Filter className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" />
-            <select
-              value={filters.date_type}
-              onChange={(e) => setFilters({ ...filters, date_type: e.target.value })}
-              className="h-14 w-full appearance-none rounded-[20px] border border-slate-200/80 bg-slate-50/80 py-0 pl-12 pr-12 text-sm font-semibold text-slate-900 outline-none"
-            >
+          <select
+            value={filters.date_type}
+            onChange={(e) => setFilters({ ...filters, date_type: e.target.value })}
+            className="app-select app-select-lg app-select-with-icon w-full"
+          >
               <option>접수일</option>
               <option>상담일</option>
             </select>
@@ -698,7 +698,11 @@ export default function CustomersPage() {
 
           <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-1">
             <div className="flex gap-2">
-              <select value={assignTmId} onChange={(e) => setAssignTmId(e.target.value)} className="h-14 min-w-0 flex-1 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
+              <select
+                value={assignTmId}
+                onChange={(e) => setAssignTmId(e.target.value)}
+                className="app-select app-select-lg min-w-0 flex-1"
+              >
                 <option value="">TM 선택</option>
                 {users.filter((u) => u.role_name === "TM").map((u) => (
                   <option key={u.id} value={u.id}>{u.name}</option>
@@ -708,7 +712,11 @@ export default function CustomersPage() {
             </div>
 
             <div className="flex gap-2">
-              <select value={assignSalesId} onChange={(e) => setAssignSalesId(e.target.value)} className="h-14 min-w-0 flex-1 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
+              <select
+                value={assignTmId}
+                onChange={(e) => setAssignTmId(e.target.value)}
+                className="app-select app-select-lg min-w-0 flex-1"
+              >
                 <option value="">영업사원 선택</option>
                 {users.filter((u) => u.role_name === "영업").map((u) => (
                   <option key={u.id} value={u.id}>{u.name}</option>
@@ -720,28 +728,44 @@ export default function CustomersPage() {
         </div>
 
         <div className="mt-3 grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1fr_auto_auto]">
-          <select value={filters.tm_id} onChange={(e) => setFilters({ ...filters, tm_id: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
+        <select
+          value={filters.tm_id}
+          onChange={(e) => setFilters({ ...filters, tm_id: e.target.value })}
+          className="app-select app-select-lg w-full"
+        >
             <option value="all">담당 TM 전체</option>
             {users.filter((u) => u.role_name === "TM").map((u) => (
               <option key={u.id} value={u.id}>{u.name}</option>
             ))}
           </select>
 
-          <select value={filters.consult_status} onChange={(e) => setFilters({ ...filters, consult_status: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
+          <select
+            value={filters.consult_status}
+            onChange={(e) => setFilters({ ...filters, consult_status: e.target.value })}
+            className="app-select app-select-lg w-full"
+          >
             <option value="all">상담 상태 전체</option>
             {consultCodes.map((c) => (
               <option key={c.code_value} value={c.code_name}>{c.code_name}</option>
             ))}
           </select>
 
-          <select value={filters.sales_id} onChange={(e) => setFilters({ ...filters, sales_id: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
+          <select
+            value={filters.sales_id}
+            onChange={(e) => setFilters({ ...filters, sales_id: e.target.value })}
+            className="app-select app-select-lg w-full"
+          >
             <option value="all">영업자 전체</option>
             {users.filter((u) => u.role_name === "영업").map((u) => (
               <option key={u.id} value={u.id}>{u.name}</option>
             ))}
           </select>
 
-          <select value={filters.sales_status} onChange={(e) => setFilters({ ...filters, sales_status: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
+          <select
+            value={filters.sales_status}
+            onChange={(e) => setFilters({ ...filters, sales_status: e.target.value })}
+            className="app-select app-select-lg w-full"
+          >
             <option value="all">영업 상태 전체</option>
             {salesCodes.map((s) => (
               <option key={s.code_value} value={s.code_name}>{s.code_name}</option>
@@ -771,7 +795,14 @@ export default function CustomersPage() {
                 실시간 반영
               </div>
 
-              <select value={itemsPerPage} onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 outline-none">
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="app-select app-select-sm min-w-[96px]"
+              >
                 <option value={10}>10개씩</option>
                 <option value={50}>50개씩</option>
                 <option value={100}>100개씩</option>
@@ -989,7 +1020,11 @@ export default function CustomersPage() {
 
                     <label className="space-y-2">
                       <span className="text-sm font-bold text-slate-700">상담 상태</span>
-                      <select value={formData.consult_status || ""} onChange={(e) => setFormData({ ...formData, consult_status: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none">
+                      <select
+                        value={formData.consult_status || ""}
+                        onChange={(e) => setFormData({ ...formData, consult_status: e.target.value })}
+                        className="app-select app-select-lg w-full"
+                      >
                         <option value="">선택 안함</option>
                         {consultCodes.map((c) => (
                           <option key={c.code_value} value={c.code_name}>{c.code_name}</option>
@@ -1077,7 +1112,11 @@ export default function CustomersPage() {
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     <label className="space-y-2">
                       <span className="text-sm font-bold text-slate-700">영업담당</span>
-                      <select value={formData.sales_id || ""} onChange={(e) => setFormData({ ...formData, sales_id: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none">
+                      <select
+                        value={formData.sales_id || ""}
+                        onChange={(e) => setFormData({ ...formData, sales_id: e.target.value })}
+                        className="app-select app-select-lg w-full"
+                      >
                         <option value="">선택 안함</option>
                         {users.filter((u) => u.role_name === "영업").map((u) => (
                           <option key={u.id} value={u.id}>{u.name}</option>
@@ -1087,12 +1126,16 @@ export default function CustomersPage() {
 
                     <label className="space-y-2">
                       <span className="text-sm font-bold text-slate-700">영업일자</span>
-                      <input type="date" value={formData.sales_date || ""} onChange={(e) => setFormData({ ...formData, sales_date: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" />
+                      <input type="date" value={formData.sales_date || ""} onChange={(e) => setFormData({ ...formData, sales_date: e.target.value })} className="app-input app-input-lg w-full" />
                     </label>
 
                     <label className="space-y-2">
                       <span className="text-sm font-bold text-slate-700">영업 상태</span>
-                      <select value={formData.sales_status || ""} onChange={(e) => setFormData({ ...formData, sales_status: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none">
+                      <select
+                        value={formData.sales_status || ""}
+                        onChange={(e) => setFormData({ ...formData, sales_status: e.target.value })}
+                        className="app-select app-select-lg w-full"
+                      >
                         <option value="">선택 안함</option>
                         {salesCodes.map((s) => (
                           <option key={s.code_value} value={s.code_name}>{s.code_name}</option>

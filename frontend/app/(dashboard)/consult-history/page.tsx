@@ -293,19 +293,22 @@ export default function ConsultationPage() {
         </div>
 
         <div className="mt-4 grid gap-3 xl:grid-cols-[1fr_1fr_auto_auto]">
-          <select 
+          <select
             disabled={!isAdmin}
-            value={filters.tm_id} 
-            onChange={(e) => setFilters({ ...filters, tm_id: e.target.value })} 
-            className="h-14 rounded-[20px] border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none disabled:bg-slate-50 focus:border-blue-500"
+            value={filters.tm_id}
+            onChange={(e) => setFilters({ ...filters, tm_id: e.target.value })}
+            className="app-select app-select-lg w-full"
           >
             <option value="all">담당 상담원 전체</option>
             {users.filter(u => u.role_name === "TM").map(u => (
               <option key={u.id} value={u.id}>{u.name}</option>
             ))}
           </select>
-          <select value={filters.consult_status} onChange={(e) => setFilters({ ...filters, consult_status: e.target.value })} className="h-14 rounded-[20px] border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500">
-            <option value="all">상담 상태 전체</option>
+          <select
+            value={filters.consult_status}
+            onChange={(e) => setFilters({ ...filters, consult_status: e.target.value })}
+            className="app-select app-select-lg w-full"
+          >
             {consultCodes.map(c => (
               <option key={c.code_value} value={c.code_name}>{c.code_name}</option>
             ))}
@@ -404,10 +407,10 @@ export default function ConsultationPage() {
                   </div>
                   <div className="space-y-3">
                     <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-1">상담 상태</label>
-                    <select 
-                      value={formData.consult_status || ""} 
-                      onChange={e => setFormData({...formData, consult_status: e.target.value})} 
-                      className="h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 font-bold text-slate-900 outline-none focus:ring-2 ring-blue-500/20 transition-all"
+                    <select
+                      value={formData.consult_status || ""}
+                      onChange={(e) => setFormData({ ...formData, consult_status: e.target.value })}
+                      className="app-select app-select-lg w-full"
                     >
                       <option value="">상태 선택</option>
                       {consultCodes.map(c => <option key={c.code_value} value={c.code_name}>{c.code_name}</option>)}

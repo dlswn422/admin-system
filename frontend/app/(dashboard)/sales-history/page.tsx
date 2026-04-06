@@ -206,20 +206,47 @@ export default function SalesManagementPage() {
         </div>
       )}
 
-      {/* 1. 슬림 헤더 (상담 관리 화면과 동일 규격) */}
+      {/* 1. 상단 헤더 */}
       <section className="soft-scale-in">
-        <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#1e232d] px-10 py-8 shadow-xl">
-          <div className="relative flex items-center justify-between">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest border border-white/5">
-                <Layers className="h-3 w-3" /> 영업 실적 시스템
+        <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(8,15,30,0.96),rgba(11,18,36,0.88))] p-6 shadow-[0_28px_70px_rgba(2,6,23,0.18)] backdrop-blur-2xl md:p-8">
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),transparent_34%,transparent_72%,rgba(59,130,246,0.06))]" />
+          <div className="absolute -left-12 top-0 h-40 w-40 rounded-full bg-blue-500/12 blur-3xl" />
+          <div className="absolute right-0 top-0 h-44 w-44 rounded-full bg-violet-500/10 blur-3xl" />
+          <div className="absolute bottom-0 left-1/3 h-32 w-32 rounded-full bg-cyan-400/10 blur-3xl" />
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+
+          <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-3xl">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-400/15 bg-blue-500/10 px-3 py-1.5 text-[11px] font-semibold tracking-[0.18em] text-blue-200 uppercase">
+                <Layers className="h-3.5 w-3.5" />
+                영업 실적 시스템
               </div>
-              <h1 className="text-[2.2rem] font-black leading-none tracking-tight text-white">영업 관리</h1>
-              <p className="text-slate-400 text-sm">실시간 영업 현황 및 성과를 통합 관리합니다.</p>
+
+              <h1 className="text-[1.9rem] font-black leading-[1.02] tracking-[-0.05em] text-white md:text-[2.4rem]">
+                영업 관리
+              </h1>
+
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 md:text-[15px]">
+                실시간 영업 현황과 계약 진행 상태, 예상 수당 정보를 한 화면에서 통합
+                관리합니다. 담당자별 성과 흐름을 빠르게 확인하고 즉시 대응할 수 있도록
+                일관된 운영 화면 구조로 정리했습니다.
+              </p>
             </div>
-            <button onClick={fetchData} className="group h-11 w-11 flex items-center justify-center rounded-full bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white transition-all">
-              <RotateCw className={`h-5 w-5 ${isLoading ? "animate-spin" : ""}`} />
-            </button>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={fetchData}
+                className="group inline-flex h-14 w-14 items-center justify-center rounded-[20px] border border-white/10 bg-white/[0.06] text-slate-200 shadow-[0_14px_28px_rgba(2,6,23,0.18)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-400/20 hover:bg-blue-500/10 hover:text-white"
+                aria-label="새로고침"
+                type="button"
+              >
+                <RotateCw
+                  className={`h-5 w-5 transition-transform duration-500 ${
+                    isLoading ? "animate-spin" : "group-hover:rotate-180"
+                  }`}
+                />
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -261,7 +288,11 @@ export default function SalesManagementPage() {
         </div>
         <div className="mt-4 grid gap-3 xl:grid-cols-[1fr_1fr_auto_auto]">
           {isAdmin ? (
-            <select value={filters.sales_id} onChange={e => setFilters({...filters, sales_id: e.target.value})} className="h-[52px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold outline-none focus:border-blue-500">
+            <select
+              value={filters.sales_id}
+              onChange={(e) => setFilters({ ...filters, sales_id: e.target.value })}
+              className="app-select app-select-md w-full"
+            >
               <option value="all">담당 영업원 전체</option>
               {users.filter(u => u.role_name === "영업").map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
@@ -270,7 +301,11 @@ export default function SalesManagementPage() {
               <Users className="h-4 w-4 mr-2 text-blue-500" /> {currentUser.name} (본인 배정건)
             </div>
           )}
-          <select value={filters.sales_status} onChange={e => setFilters({...filters, sales_status: e.target.value})} className="h-[52px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold outline-none focus:border-blue-500">
+          <select
+            value={filters.sales_status}
+            onChange={(e) => setFilters({ ...filters, sales_status: e.target.value })}
+            className="app-select app-select-md w-full"
+          >
             <option value="all">영업 상태 전체</option>
             {salesCodes.map(c => <option key={c.code_value} value={c.code_name}>{c.code_name}</option>)}
           </select>
@@ -381,11 +416,11 @@ export default function SalesManagementPage() {
                     <div className="space-y-5">
                       <div className="space-y-2">
                         <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">상담 상태</label>
-                        <select 
-                          disabled={!isAdmin} 
-                          value={formData.consult_status || ""} 
-                          onChange={e => setFormData({...formData, consult_status: e.target.value})} 
-                          className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-5 font-bold text-slate-900 outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
+                        <select
+                          disabled={!isAdmin}
+                          value={formData.consult_status || ""}
+                          onChange={(e) => setFormData({ ...formData, consult_status: e.target.value })}
+                          className="app-select app-select-md w-full"
                         >
                           <option value="">상태 미지정</option>
                           {consultCodes.map(c => (
@@ -412,7 +447,11 @@ export default function SalesManagementPage() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">영업 상태</label>
-                          <select value={formData.sales_status || ""} onChange={e => setFormData({...formData, sales_status: e.target.value})} className="h-12 w-full rounded-2xl border border-emerald-200 bg-white px-5 font-bold text-slate-900 outline-none focus:ring-2 ring-emerald-500/20">
+                          <select
+                            value={formData.sales_status || ""}
+                            onChange={(e) => setFormData({ ...formData, sales_status: e.target.value })}
+                            className="app-select app-select-md w-full"
+                          >
                             <option value="">상태 선택</option>
                             {salesCodes.map(c => <option key={c.code_value} value={c.code_name}>{c.code_name}</option>)}
                           </select>

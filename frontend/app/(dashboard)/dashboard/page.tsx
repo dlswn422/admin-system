@@ -71,7 +71,7 @@ export default function DashboardPage() {
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: "전체 접수", value: data.summary.total, unit: "건", color: "bg-blue-600" },
-            { label: "수당 합계", value: data.summary.totalCommission.toLocaleString(), unit: "원", color: "bg-emerald-600" },
+            { label: "매출 합계", value: data.summary.totalCommission.toLocaleString(), unit: "원", color: "bg-emerald-600" },
             { label: "TM 미배정", value: data.summary.unassignedTM, unit: "건", color: "bg-rose-500" },
             { label: "영업 미배정", value: data.summary.unassignedSales, unit: "건", color: "bg-orange-500" },
           ].map((item, i) => (
@@ -148,7 +148,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="space-y-1">
                     <p className="font-black text-2xl text-slate-900 tracking-tight">{sales.name}</p>
-                    <p className="text-sm font-bold text-emerald-600 tabular-nums">수당 ₩{sales.commission.toLocaleString()}</p>
+                    <p className="text-sm font-bold text-emerald-600 tabular-nums">매출 ₩{sales.commission.toLocaleString()}</p>
                   </div>
                 </div>
                 <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 flex justify-between items-center shadow-inner">

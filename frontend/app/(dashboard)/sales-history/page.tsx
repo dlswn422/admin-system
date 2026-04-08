@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Search,
   RotateCw,
@@ -102,7 +102,7 @@ export default function SalesManagementPage() {
   const [isRecordingsLoading, setIsRecordingsLoading] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
 
-  // --- API 호출 로직 (인자 주입으로 undefined 이슈 해결) ---
+  // --- API 호출 로직 ---
   const fetchData = useCallback(async (userOverride?: UserInfo) => {
     const activeUser = userOverride || currentUser;
     if (!activeUser) return;
@@ -115,7 +115,6 @@ export default function SalesManagementPage() {
       if (filters.search) params.search = filters.search;
       if (filters.sales_status && filters.sales_status !== "all") params.sales_status = filters.sales_status;
 
-      // 권한 체크: 관리자가 아니면 무조건 본인 ID 강제 주입
       const roleName = activeUser.role_name || (activeUser as any).role;
       const userId = activeUser.id;
 
@@ -229,6 +228,16 @@ export default function SalesManagementPage() {
 
   const totalPages = Math.max(1, Math.ceil(customers.length / itemsPerPage));
 
+  // --- 영업 담당자용 필터링된 옵션 ---
+  const filteredSalesCodes = useMemo(() => {
+    const roleName = currentUser?.role_name || (currentUser as any)?.role;
+    if (roleName === "관리자") return salesCodes;
+    
+    // 영업 담당자에게만 허용할 상태값 리스트
+    const allowedStatus = ["방문 전", "관리", "거절", "조회 요청"];
+    return salesCodes.filter(code => allowedStatus.includes(code.code_name));
+  }, [salesCodes, currentUser]);
+
   if (!currentUser) return null;
 
   return (
@@ -313,7 +322,7 @@ export default function SalesManagementPage() {
         </div>
       </section>
 
-      {/* 테이블: 삭제 버튼 제거 */}
+      {/* 테이블 */}
       <section className="rounded-[24px] border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="p-4 md:p-8 overflow-x-auto">
           <div className="min-w-[1400px] space-y-2">
@@ -346,7 +355,7 @@ export default function SalesManagementPage() {
         </div>
       </section>
 
-      {/* 상세 모달: 업체정보(View), 상담이력(View), 영업성과(Edit), 녹취(View) */}
+      {/* 상세 모달 */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/40 p-6 backdrop-blur-xl">
           <div className="relative max-h-[95vh] w-full max-w-6xl overflow-hidden rounded-[32px] bg-white shadow-2xl flex flex-col">
@@ -362,7 +371,6 @@ export default function SalesManagementPage() {
               </div>
 
               <form onSubmit={handleSave} className="space-y-8">
-                {/* 1. 업체 정보 섹션 (ReadOnly) */}
                 <section className="grid grid-cols-1 md:grid-cols-4 gap-6 p-8 bg-slate-50 rounded-[30px] border border-slate-100">
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-[11px] font-black text-slate-400 uppercase tracking-widest"><Building2 className="h-3.5 w-3.5"/> 업체명</label>
@@ -383,7 +391,6 @@ export default function SalesManagementPage() {
                 </section>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  {/* 2. 상담 이력 영역 (ReadOnly / View Only) */}
                   <div className="p-8 rounded-[30px] border border-slate-100 bg-slate-50/50">
                     <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
                       <UserCheck className="h-4 w-4" /> 상담팀 전달 사항 (읽기 전용)
@@ -404,16 +411,22 @@ export default function SalesManagementPage() {
                     </div>
                   </div>
 
-                  {/* 3. 영업 성과 입력 영역 (Edit 활성화) */}
                   <div className="p-8 rounded-[30px] border border-emerald-100 bg-emerald-50/10 shadow-sm">
                     <h3 className="text-sm font-black text-emerald-700 uppercase tracking-widest mb-6">영업 성과 기록 (성과 업데이트)</h3>
                     <div className="space-y-5">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-[11px] font-black text-slate-400 uppercase ml-1">영업 상태</label>
-                          <select value={formData.sales_status || ""} onChange={e => setFormData({...formData, sales_status: e.target.value})} className="h-12 w-full rounded-2xl border border-emerald-200 bg-white px-5 font-bold text-slate-900 outline-none focus:ring-2 ring-emerald-500/20">
+                          <select 
+                            value={formData.sales_status || ""} 
+                            onChange={e => setFormData({...formData, sales_status: e.target.value})} 
+                            className="h-12 w-full rounded-2xl border border-emerald-200 bg-white px-5 font-bold text-slate-900 outline-none focus:ring-2 ring-emerald-500/20"
+                          >
                             <option value="">상태 선택</option>
-                            {salesCodes.map(c => <option key={c.code_value} value={c.code_name}>{c.code_name}</option>)}
+                            {/* 필터링된 옵션 적용 */}
+                            {filteredSalesCodes.map(c => (
+                              <option key={c.code_value} value={c.code_name}>{c.code_name}</option>
+                            ))}
                           </select>
                         </div>
                         <div className="space-y-2">
@@ -433,7 +446,6 @@ export default function SalesManagementPage() {
                   </div>
                 </div>
 
-                {/* 4. 녹취 파일 목록 (View Only) */}
                 <section className="rounded-[30px] border-2 border-dashed border-slate-200 bg-slate-50/50 p-8">
                   <h3 className="font-black text-slate-900 flex items-center gap-2 mb-6"><FileAudio className="h-5 w-5" /> 상담 녹취 자료 (다운로드 전용)</h3>
                   <div className="grid gap-3">

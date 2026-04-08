@@ -20,6 +20,8 @@ import {
   MapPin,
   FileAudio,
   ExternalLink,
+  TrendingUp,
+  Award,
 } from "lucide-react";
 
 // --- Interfaces ---
@@ -80,22 +82,23 @@ export default function SalesManagementPage() {
 
   // --- States ---
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [allSalesDataForRank, setAllSalesDataForRank] = useState<Customer[]>([]); // 랭킹 집계용 전체 데이터
   const [users, setUsers] = useState<UserInfo[]>([]);
-  const [consultCodes, setConsultCodes] = useState<CommonCode[]>([]);
   const [salesCodes, setSalesCodes] = useState<CommonCode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   const [filters, setFilters] = useState<FilterState>({
     date_from: "",
     date_to: "",
     search: "",
-    sales_id: "",
+    sales_id: "all",
     sales_status: "all",
   });
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isRankModalOpen, setIsRankModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState<Partial<Customer>>({});
   const [recordings, setRecordings] = useState<RecordingItem[]>([]);
@@ -109,37 +112,39 @@ export default function SalesManagementPage() {
 
     setIsLoading(true);
     try {
-      const params: Record<string, string> = { date_type: "영업일" };
-      if (filters.date_from) params.date_from = filters.date_from;
-      if (filters.date_to) params.date_to = filters.date_to;
-      if (filters.search) params.search = filters.search;
-      if (filters.sales_status && filters.sales_status !== "all") params.sales_status = filters.sales_status;
-
       const roleName = activeUser.role_name || (activeUser as any).role;
-      const userId = activeUser.id;
-
+      
+      // 1. 리스트용 파라미터 (영업 사원은 본인 것만)
+      const listParams = new URLSearchParams({ date_type: "영업일" });
+      if (filters.date_from) listParams.append("date_from", filters.date_from);
+      if (filters.date_to) listParams.append("date_to", filters.date_to);
+      if (filters.search) listParams.append("search", filters.search);
+      if (filters.sales_status !== "all") listParams.append("sales_status", filters.sales_status);
+      
       if (roleName !== "관리자") {
-        params.sales_id = String(userId);
-      } else if (filters.sales_id && filters.sales_id !== "all") {
-        params.sales_id = filters.sales_id;
+        listParams.append("sales_id", String(activeUser.id));
+      } else if (filters.sales_id !== "all") {
+        listParams.append("sales_id", filters.sales_id);
       }
 
-      const queryParams = new URLSearchParams();
-      Object.entries(params).forEach(([key, val]) => {
-        if (val && val !== "undefined" && val !== "null") queryParams.append(key, val);
-      });
+      // 2. 랭킹용 파라미터 (영업사원 여부와 상관없이 해당 날짜의 '전체' 데이터를 가져옴)
+      const rankParams = new URLSearchParams({ date_type: "영업일" });
+      if (filters.date_from) rankParams.append("date_from", filters.date_from);
+      if (filters.date_to) rankParams.append("date_to", filters.date_to);
 
-      const [cRes, uRes, cCodeRes, sCodeRes] = await Promise.all([
-        fetch(`/api/customers?${queryParams.toString()}`),
+      const [cRes, rRes, uRes, sCodeRes] = await Promise.all([
+        fetch(`/api/customers?${listParams.toString()}`),
+        fetch(`/api/customers?${rankParams.toString()}`),
         fetch("/api/users"),
-        fetch("/api/codes/details/by-group?group_code=CONSULT_STATUS"),
         fetch("/api/codes/details/by-group?group_code=SALES_STATUS"),
       ]);
 
       const cData = await cRes.json();
+      const rData = await rRes.json();
+      
       setCustomers(Array.isArray(cData) ? cData : cData?.data || []);
+      setAllSalesDataForRank(Array.isArray(rData) ? rData : rData?.data || []);
       setUsers(await uRes.json());
-      setConsultCodes(await cCodeRes.json());
       setSalesCodes(await sCodeRes.json());
     } catch {
       showToast("데이터 로드 실패", "error");
@@ -148,30 +153,18 @@ export default function SalesManagementPage() {
     }
   }, [filters, currentUser]);
 
-  // --- 초기 실행: 유저 정보 로드 ---
+  // --- 초기 실행 ---
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
         setCurrentUser(parsedUser);
-        
-        const roleName = parsedUser.role_name || parsedUser.role;
-        const userId = parsedUser.id;
-
-        if (roleName !== "관리자" && userId) {
-          setFilters(prev => ({ ...prev, sales_id: String(userId) }));
-        }
         fetchData(parsedUser);
-      } catch (e) {
-        window.location.href = "/login";
-      }
-    } else {
-      window.location.href = "/login";
-    }
+      } catch { window.location.href = "/login"; }
+    } else { window.location.href = "/login"; }
   }, []);
 
-  // 필터 변경 시 실행
   useEffect(() => {
     if (currentUser) fetchData();
   }, [filters.date_from, filters.date_to, filters.search, filters.sales_id, filters.sales_status]);
@@ -181,24 +174,17 @@ export default function SalesManagementPage() {
     window.setTimeout(() => setToast(null), 3000);
   }, []);
 
-  const fetchRecordings = async (customerId: string) => {
-    setIsRecordingsLoading(true);
-    try {
-      const res = await fetch(`/api/recordings/upload?customer_id=${customerId}`);
-      const data = await res.json();
-      setRecordings(Array.isArray(data) ? data : []);
-    } catch {
-      setRecordings([]);
-    } finally {
-      setIsRecordingsLoading(false);
-    }
-  };
-
   const openModal = async (customer: Customer) => {
     setSelectedCustomer(customer);
     setFormData({ ...customer });
     setIsModalOpen(true);
-    await fetchRecordings(customer.id);
+    setIsRecordingsLoading(true);
+    try {
+      const res = await fetch(`/api/recordings/upload?customer_id=${customer.id}`);
+      const data = await res.json();
+      setRecordings(Array.isArray(data) ? data : []);
+    } catch { setRecordings([]); }
+    finally { setIsRecordingsLoading(false); }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -215,28 +201,34 @@ export default function SalesManagementPage() {
     }
   };
 
+  // --- [중요] 랭킹 로직: 수당 기준 내림차순, 본인 포함 ---
+  const salesRankings = useMemo(() => {
+    const salesUsers = users.filter(u => u.role_name === "영업" || (u as any).role === "영업");
+    return salesUsers.map(u => {
+      const userSales = allSalesDataForRank.filter(c => String(c.sales_id) === String(u.id));
+      const total = userSales.reduce((sum, c) => sum + Number(c.sales_commission || 0), 0);
+      return { id: u.id, name: u.name, total, count: userSales.length };
+    }).sort((a, b) => b.total - a.total);
+  }, [users, allSalesDataForRank]);
+
   const stats = useMemo(() => ({
     total: customers.length,
     completed: customers.filter(c => c.sales_status?.includes("완료")).length,
     totalCommission: customers.reduce((sum, c) => sum + Number(c.sales_commission || 0), 0)
   }), [customers]);
 
+  const filteredSalesCodes = useMemo(() => {
+    const role = currentUser?.role_name || (currentUser as any)?.role;
+    if (role === "관리자") return salesCodes;
+    return salesCodes.filter(c => ["방문 전", "관리", "거절", "조회 요청"].includes(c.code_name));
+  }, [salesCodes, currentUser]);
+
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return customers.slice(start, start + itemsPerPage);
-  }, [customers, currentPage, itemsPerPage]);
+  }, [customers, currentPage]);
 
   const totalPages = Math.max(1, Math.ceil(customers.length / itemsPerPage));
-
-  // --- 영업 담당자용 필터링된 옵션 ---
-  const filteredSalesCodes = useMemo(() => {
-    const roleName = currentUser?.role_name || (currentUser as any)?.role;
-    if (roleName === "관리자") return salesCodes;
-    
-    // 영업 담당자에게만 허용할 상태값 리스트
-    const allowedStatus = ["방문 전", "관리", "거절", "조회 요청"];
-    return salesCodes.filter(code => allowedStatus.includes(code.code_name));
-  }, [salesCodes, currentUser]);
 
   if (!currentUser) return null;
 
@@ -250,7 +242,7 @@ export default function SalesManagementPage() {
       )}
 
       {/* 헤더 */}
-      <section className="soft-scale-in">
+      <section>
         <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#1e232d] px-10 py-8 shadow-xl">
           <div className="relative flex items-center justify-between">
             <div className="space-y-2">
@@ -268,7 +260,7 @@ export default function SalesManagementPage() {
       </section>
 
       {/* 통계 카드 */}
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-4">
         {[
           { label: "배정 고객수", value: stats.total, icon: Users, color: "text-blue-600 bg-blue-50" },
           { label: "계약 완료", value: stats.completed, icon: UserCheck, color: "text-emerald-600 bg-emerald-50" },
@@ -284,6 +276,13 @@ export default function SalesManagementPage() {
             </div>
           </div>
         ))}
+        <button onClick={() => setIsRankModalOpen(true)} className="flex items-center justify-between rounded-[24px] border border-rose-100 bg-rose-50/30 p-8 shadow-sm hover:bg-rose-50 transition-all text-left group">
+          <div>
+            <p className="text-xs font-bold text-rose-400 uppercase tracking-wider">영업자 매출</p>
+            <p className="mt-2 text-2xl font-black text-rose-600">실적 랭킹 보기</p>
+          </div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600"><TrendingUp className="h-6 w-6" /></div>
+        </button>
       </section>
 
       {/* 필터 바 */}
@@ -298,7 +297,7 @@ export default function SalesManagementPage() {
             <input type="date" value={filters.date_to} onChange={e => setFilters({...filters, date_to: e.target.value})} className="h-[52px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500" />
             <div className="relative">
               <Search className="absolute left-5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} placeholder="업체명, 대표자 검색" className="h-[52px] w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-5 text-sm font-bold text-slate-900 focus:border-blue-500 outline-none" />
+              <input value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} placeholder="업체명 검색" className="h-[52px] w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-5 text-sm font-bold text-slate-900 focus:border-blue-500 outline-none" />
             </div>
           </div>
         </div>
@@ -315,7 +314,7 @@ export default function SalesManagementPage() {
             <option value="all">영업 상태 전체</option>
             {salesCodes.map(c => <option key={c.code_value} value={c.code_name}>{c.code_name}</option>)}
           </select>
-          <button onClick={() => setFilters(prev => ({ ...prev, date_from: "", date_to: "", search: "", sales_status: "all" }))} className="h-[52px] rounded-2xl px-8 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">초기화</button>
+          <button onClick={() => setFilters({ date_from: "", date_to: "", search: "", sales_id: "all", sales_status: "all" })} className="h-[52px] rounded-2xl px-8 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">초기화</button>
           <div className="inline-flex h-[52px] items-center justify-center gap-2 rounded-full bg-[#1e232d] px-6 text-sm font-bold text-white shadow-lg">
             <Sparkles className="h-4 w-4 text-blue-400" /> 검색 {customers.length}건
           </div>
@@ -355,97 +354,120 @@ export default function SalesManagementPage() {
         </div>
       </section>
 
-      {/* 상세 모달 */}
+      {/* 랭킹 모달 */}
+      {isRankModalOpen && (
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-950/60 p-6 backdrop-blur-md">
+          <div className="relative w-full max-w-2xl rounded-[32px] bg-white shadow-2xl p-10 animate-in zoom-in-95">
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-[10px] font-black text-rose-600 border border-rose-100 uppercase tracking-widest mb-2"><Award className="h-3.5 w-3.5" /> Performance Rankings</div>
+                <h2 className="text-3xl font-black">영업자 실적 랭킹</h2>
+                <p className="text-sm text-slate-400 font-medium mt-1">지정된 기간 내 모든 영업 사원의 수당 합계입니다.</p>
+              </div>
+              <button onClick={() => setIsRankModalOpen(false)} className="h-10 w-10 flex items-center justify-center hover:bg-slate-100 rounded-full text-slate-400"><X /></button>
+            </div>
+            <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+              {salesRankings.map((r, i) => (
+                <div key={r.id} className={`flex items-center justify-between p-5 rounded-2xl border transition-all ${r.id === currentUser?.id ? "bg-rose-50 border-rose-200 ring-1 ring-rose-200" : "bg-slate-50 border-slate-100"}`}>
+                  <div className="flex items-center gap-4">
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center font-black ${i === 0 ? "bg-amber-100 text-amber-600" : "bg-white text-slate-400"}`}>{i+1}</div>
+                    <div>
+                      <div className="font-black text-slate-900">{r.name} {r.id === currentUser?.id && <span className="ml-2 px-2 py-0.5 bg-rose-600 text-white text-[9px] rounded-md uppercase">You</span>}</div>
+                      <div className="text-xs font-bold text-slate-400">계약 {r.count}건</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-black">₩{r.total.toLocaleString()}</div>
+                    <div className="text-[10px] font-bold text-rose-500 uppercase tracking-tighter">Commission</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setIsRankModalOpen(false)} className="w-full h-14 mt-8 bg-slate-900 text-white font-black rounded-2xl hover:bg-black transition-all shadow-xl">닫기</button>
+          </div>
+        </div>
+      )}
+
+      {/* 상세 수정 모달 */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/40 p-6 backdrop-blur-xl">
           <div className="relative max-h-[95vh] w-full max-w-6xl overflow-hidden rounded-[32px] bg-white shadow-2xl flex flex-col">
             <div className="overflow-y-auto p-10 md:p-12 text-slate-900">
               <div className="flex justify-between items-start mb-8 border-b border-slate-100 pb-8">
                 <div className="space-y-2">
-                  <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black text-blue-600 border border-blue-100 uppercase tracking-widest">
-                    <BriefcaseBusiness className="h-3.5 w-3.5" /> 영업 성과 및 이력 확인
-                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black text-blue-600 border border-blue-100 uppercase tracking-widest"><BriefcaseBusiness className="h-3.5 w-3.5" /> 영업 성과 및 이력 확인</div>
                   <h2 className="text-3xl font-black">{selectedCustomer?.company_name}</h2>
                 </div>
-                <button onClick={() => setIsModalOpen(false)} className="h-10 w-10 flex items-center justify-center hover:bg-slate-100 rounded-full text-slate-400 transition-all"><X/></button>
+                <button onClick={() => setIsModalOpen(false)} className="h-10 w-10 flex items-center justify-center hover:bg-slate-100 rounded-full text-slate-400"><X /></button>
               </div>
 
               <form onSubmit={handleSave} className="space-y-8">
+                {/* 업체 정보 섹션 (ReadOnly) */}
                 <section className="grid grid-cols-1 md:grid-cols-4 gap-6 p-8 bg-slate-50 rounded-[30px] border border-slate-100">
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-[11px] font-black text-slate-400 uppercase tracking-widest"><Building2 className="h-3.5 w-3.5"/> 업체명</label>
-                    <input readOnly value={selectedCustomer?.company_name || ""} className="w-full bg-transparent border-none font-bold text-slate-800 outline-none cursor-default" />
+                    <div className="w-full font-bold text-slate-800">{selectedCustomer?.company_name}</div>
                   </div>
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-[11px] font-black text-slate-400 uppercase tracking-widest"><UserIcon className="h-3.5 w-3.5"/> 대표자</label>
-                    <input readOnly value={selectedCustomer?.customer_name || ""} className="w-full bg-transparent border-none font-bold text-slate-800 outline-none cursor-default" />
+                    <div className="w-full font-bold text-slate-800">{selectedCustomer?.customer_name}</div>
                   </div>
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-[11px] font-black text-slate-400 uppercase tracking-widest"><Phone className="h-3.5 w-3.5"/> 연락처</label>
-                    <input readOnly value={selectedCustomer?.mobile_phone || ""} className="w-full bg-transparent border-none font-bold text-slate-800 outline-none cursor-default" />
+                    <div className="w-full font-bold text-slate-800">{selectedCustomer?.mobile_phone}</div>
                   </div>
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-[11px] font-black text-slate-400 uppercase tracking-widest"><MapPin className="h-3.5 w-3.5"/> 주소</label>
-                    <input readOnly value={selectedCustomer?.address || ""} className="w-full bg-transparent border-none font-bold text-slate-800 outline-none cursor-default truncate" />
+                    <div className="w-full font-bold text-slate-800 truncate">{selectedCustomer?.address}</div>
                   </div>
                 </section>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* 상담 정보 */}
                   <div className="p-8 rounded-[30px] border border-slate-100 bg-slate-50/50">
-                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                      <UserCheck className="h-4 w-4" /> 상담팀 전달 사항 (읽기 전용)
-                    </h3>
+                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2"><UserCheck className="h-4 w-4" /> 상담팀 전달 사항</h3>
                     <div className="space-y-5">
                       <div className="space-y-2">
                         <label className="text-[11px] font-black text-slate-400 uppercase ml-1">상담 상태</label>
-                        <div className="h-12 w-full flex items-center px-5 rounded-2xl border border-slate-200 bg-slate-100 font-bold text-slate-500">
-                          {selectedCustomer?.consult_status || "상담 완료"}
-                        </div>
+                        <div className="h-12 w-full flex items-center px-5 rounded-2xl border border-slate-200 bg-slate-100 font-bold text-slate-500">{selectedCustomer?.consult_status || "상담 완료"}</div>
                       </div>
                       <div className="space-y-2">
                         <label className="text-[11px] font-black text-slate-400 uppercase ml-1">상담 메모</label>
-                        <div className="min-h-[120px] w-full p-5 rounded-2xl border border-slate-200 bg-slate-100 font-medium text-slate-500 whitespace-pre-wrap leading-relaxed">
-                          {selectedCustomer?.consult_memo || "기록된 상담 메모가 없습니다."}
-                        </div>
+                        <div className="min-h-[150px] w-full p-5 rounded-2xl border border-slate-200 bg-slate-100 font-medium text-slate-500 whitespace-pre-wrap leading-relaxed">{selectedCustomer?.consult_memo || "기록된 상담 메모가 없습니다."}</div>
                       </div>
                     </div>
                   </div>
 
+                  {/* 영업 성과 입력 */}
                   <div className="p-8 rounded-[30px] border border-emerald-100 bg-emerald-50/10 shadow-sm">
                     <h3 className="text-sm font-black text-emerald-700 uppercase tracking-widest mb-6">영업 성과 기록 (성과 업데이트)</h3>
                     <div className="space-y-5">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-[11px] font-black text-slate-400 uppercase ml-1">영업 상태</label>
-                          <select 
-                            value={formData.sales_status || ""} 
-                            onChange={e => setFormData({...formData, sales_status: e.target.value})} 
-                            className="h-12 w-full rounded-2xl border border-emerald-200 bg-white px-5 font-bold text-slate-900 outline-none focus:ring-2 ring-emerald-500/20"
-                          >
+                          <select value={formData.sales_status || ""} onChange={e => setFormData({...formData, sales_status: e.target.value})} className="h-12 w-full rounded-2xl border border-emerald-200 bg-white px-5 font-bold text-slate-900 outline-none focus:ring-2 ring-emerald-500/20">
                             <option value="">상태 선택</option>
-                            {/* 필터링된 옵션 적용 */}
-                            {filteredSalesCodes.map(c => (
-                              <option key={c.code_value} value={c.code_name}>{c.code_name}</option>
-                            ))}
+                            {filteredSalesCodes.map(c => <option key={c.code_value} value={c.code_name}>{c.code_name}</option>)}
                           </select>
                         </div>
                         <div className="space-y-2">
                           <label className="text-[11px] font-black text-slate-400 uppercase ml-1">영업일자</label>
-                          <input type="date" value={formData.sales_date?.split('T')[0] || ""} onChange={e => setFormData({...formData, sales_date: e.target.value})} className="h-12 w-full rounded-2xl border border-emerald-200 bg-white px-5 font-bold text-slate-900 outline-none focus:border-emerald-500" />
+                          <input type="date" value={formData.sales_date?.split('T')[0] || ""} onChange={e => setFormData({...formData, sales_date: e.target.value})} className="h-12 w-full rounded-2xl border border-emerald-200 bg-white px-5 font-bold text-slate-900 outline-none" />
                         </div>
                       </div>
                       <div className="space-y-2">
                         <label className="text-[11px] font-black text-slate-400 uppercase ml-1">정산 매출 (₩)</label>
-                        <input type="number" value={formData.sales_commission || ""} onChange={e => setFormData({...formData, sales_commission: Number(e.target.value)})} placeholder="매출액을 입력하세요" className="h-12 w-full rounded-2xl border border-emerald-200 bg-white px-5 font-black text-emerald-600 outline-none focus:border-emerald-500" />
+                        <input type="number" value={formData.sales_commission || ""} onChange={e => setFormData({...formData, sales_commission: Number(e.target.value)})} placeholder="매출액을 입력하세요" className="h-12 w-full rounded-2xl border border-emerald-200 bg-white px-5 font-black text-emerald-600 outline-none" />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[11px] font-black text-slate-400 uppercase ml-1">영업 비고</label>
-                        <textarea value={formData.sales_memo || ""} onChange={e => setFormData({...formData, sales_memo: e.target.value})} placeholder="계약 상세 정보 및 영업 특이사항을 기록하세요..." className="min-h-[100px] w-full rounded-2xl border border-emerald-200 bg-white p-5 font-bold text-slate-900 outline-none focus:ring-2 ring-emerald-500/20 leading-relaxed" />
+                        <textarea value={formData.sales_memo || ""} onChange={e => setFormData({...formData, sales_memo: e.target.value})} placeholder="특이사항 기록..." className="min-h-[100px] w-full rounded-2xl border border-emerald-200 bg-white p-5 font-bold text-slate-900 outline-none" />
                       </div>
                     </div>
                   </div>
                 </div>
 
+                {/* 녹취 자료 */}
                 <section className="rounded-[30px] border-2 border-dashed border-slate-200 bg-slate-50/50 p-8">
                   <h3 className="font-black text-slate-900 flex items-center gap-2 mb-6"><FileAudio className="h-5 w-5" /> 상담 녹취 자료 (다운로드 전용)</h3>
                   <div className="grid gap-3">

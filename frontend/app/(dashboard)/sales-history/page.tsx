@@ -263,7 +263,7 @@ export default function SalesManagementPage() {
         {[
           { label: "배정 고객수", value: stats.total, icon: Users, color: "text-blue-600 bg-blue-50" },
           { label: "계약 완료", value: stats.completed, icon: UserCheck, color: "text-emerald-600 bg-emerald-50" },
-          { label: "예상 매출 총액", value: `₩${stats.totalCommission.toLocaleString()}`, icon: Wallet, color: "text-violet-600 bg-violet-50" },
+          { label: "매출 총액", value: `₩${stats.totalCommission.toLocaleString()}`, icon: Wallet, color: "text-violet-600 bg-violet-50" },
         ].map((stat, i) => (
           <div key={i} className="flex items-center justify-between rounded-[24px] border border-slate-200 bg-white p-8 shadow-sm">
             <div>

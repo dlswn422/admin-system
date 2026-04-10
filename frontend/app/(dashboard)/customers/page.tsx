@@ -142,6 +142,7 @@ export default function CustomersPage() {
   const getUserNameById = useCallback(
     (id?: string | null) => {
       if (!id || id === "unassigned") return "미배정";
+      if (id === "assigned") return "배정 완료";
       return users.find((u) => u.id === id)?.name || "미배정";
     },
     [users]
@@ -249,8 +250,19 @@ export default function CustomersPage() {
   const resultSummary = useMemo(() => {
     const parts: string[] = [];
     if (filters.search) parts.push("검색 적용");
-    if (filters.tm_id !== "all") parts.push(filters.tm_id === 'unassigned' ? "TM 미배정" : "TM 필터");
-    if (filters.sales_id !== "all") parts.push(filters.sales_id === 'unassigned' ? "영업자 미배정" : "영업자 필터");
+    
+    if (filters.tm_id !== "all") {
+      if (filters.tm_id === 'unassigned') parts.push("TM 미배정");
+      else if (filters.tm_id === 'assigned') parts.push("TM 배정완료");
+      else parts.push("TM 필터");
+    }
+    
+    if (filters.sales_id !== "all") {
+      if (filters.sales_id === 'unassigned') parts.push("영업자 미배정");
+      else if (filters.sales_id === 'assigned') parts.push("영업자 배정완료");
+      else parts.push("영업자 필터");
+    }
+
     if (filters.consult_status !== "all") parts.push("상담 상태");
     if (filters.sales_status !== "all") parts.push("영업 상태");
     if (filters.date_from || filters.date_to) parts.push("기간 필터");
@@ -259,16 +271,13 @@ export default function CustomersPage() {
     return `${parts.join(" · ")} · ${customers.length}건`;
   }, [filters, customers.length]);
 
-  // 전체 선택 로직 업데이트: 현재 페이지의 아이디들을 기준으로 토글
   const toggleSelectAll = () => {
     const currentIds = paginatedData.map((c) => c.id);
     const isAllOnPageSelected = currentIds.length > 0 && currentIds.every(id => selectedIds.includes(id));
 
     if (isAllOnPageSelected) {
-      // 현재 페이지의 ID들만 선택 해제
       setSelectedIds(prev => prev.filter(id => !currentIds.includes(id)));
     } else {
-      // 현재 페이지의 ID들을 추가 (중복 방지)
       setSelectedIds(prev => Array.from(new Set([...prev, ...currentIds])));
     }
   };
@@ -728,6 +737,7 @@ export default function CustomersPage() {
         <div className="mt-3 grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1fr_auto_auto]">
           <select value={filters.tm_id} onChange={(e) => setFilters({ ...filters, tm_id: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
             <option value="all">담당 TM 전체</option>
+            <option value="assigned">배정 완료</option>
             <option value="unassigned">미배정</option>
             {users.filter((u) => u.role_name === "TM").map((u) => (
               <option key={u.id} value={u.id}>{u.name}</option>
@@ -743,6 +753,7 @@ export default function CustomersPage() {
 
           <select value={filters.sales_id} onChange={(e) => setFilters({ ...filters, sales_id: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
             <option value="all">영업자 전체</option>
+            <option value="assigned">배정 완료</option>
             <option value="unassigned">미배정</option>
             {users.filter((u) => u.role_name === "영업").map((u) => (
               <option key={u.id} value={u.id}>{u.name}</option>

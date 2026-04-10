@@ -141,7 +141,7 @@ export default function CustomersPage() {
 
   const getUserNameById = useCallback(
     (id?: string | null) => {
-      if (!id) return "미배정";
+      if (!id || id === "unassigned") return "미배정";
       return users.find((u) => u.id === id)?.name || "미배정";
     },
     [users]
@@ -249,8 +249,8 @@ export default function CustomersPage() {
   const resultSummary = useMemo(() => {
     const parts: string[] = [];
     if (filters.search) parts.push("검색 적용");
-    if (filters.tm_id !== "all") parts.push("TM 필터");
-    if (filters.sales_id !== "all") parts.push("영업자 필터");
+    if (filters.tm_id !== "all") parts.push(filters.tm_id === 'unassigned' ? "TM 미배정" : "TM 필터");
+    if (filters.sales_id !== "all") parts.push(filters.sales_id === 'unassigned' ? "영업자 미배정" : "영업자 필터");
     if (filters.consult_status !== "all") parts.push("상담 상태");
     if (filters.sales_status !== "all") parts.push("영업 상태");
     if (filters.date_from || filters.date_to) parts.push("기간 필터");
@@ -259,11 +259,17 @@ export default function CustomersPage() {
     return `${parts.join(" · ")} · ${customers.length}건`;
   }, [filters, customers.length]);
 
+  // 전체 선택 로직 업데이트: 현재 페이지의 아이디들을 기준으로 토글
   const toggleSelectAll = () => {
-    if (selectedIds.length === paginatedData.length && paginatedData.length > 0) {
-      setSelectedIds([]);
+    const currentIds = paginatedData.map((c) => c.id);
+    const isAllOnPageSelected = currentIds.length > 0 && currentIds.every(id => selectedIds.includes(id));
+
+    if (isAllOnPageSelected) {
+      // 현재 페이지의 ID들만 선택 해제
+      setSelectedIds(prev => prev.filter(id => !currentIds.includes(id)));
     } else {
-      setSelectedIds(paginatedData.map((c) => c.id));
+      // 현재 페이지의 ID들을 추가 (중복 방지)
+      setSelectedIds(prev => Array.from(new Set([...prev, ...currentIds])));
     }
   };
 
@@ -545,7 +551,7 @@ export default function CustomersPage() {
 
       {toast && (
         <div
-          className={`fixed right-6 top-6 z-[11000] flex items-center gap-3 rounded-[22px] border border-white/10 px-5 py-4 shadow-[0_24px_50px_rgba(15,23,42,0.2)] backdrop-blur-2xl animate-in slide-in-from-right-8 duration-300 ${
+          className={`fixed right-6 top-6 z-[11000] flex items-center gap-3 rounded-[22px] border border-white/10 px-5 py-4 shadow-[0_24px_50px_rgba(15,23,42,0.25)] backdrop-blur-2xl animate-in slide-in-from-right-8 duration-300 ${
             toast.type === "success" ? "bg-slate-900/90 text-white" : "bg-rose-600/90 text-white"
           }`}
         >
@@ -722,6 +728,7 @@ export default function CustomersPage() {
         <div className="mt-3 grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1fr_auto_auto]">
           <select value={filters.tm_id} onChange={(e) => setFilters({ ...filters, tm_id: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
             <option value="all">담당 TM 전체</option>
+            <option value="unassigned">미배정</option>
             {users.filter((u) => u.role_name === "TM").map((u) => (
               <option key={u.id} value={u.id}>{u.name}</option>
             ))}
@@ -736,6 +743,7 @@ export default function CustomersPage() {
 
           <select value={filters.sales_id} onChange={(e) => setFilters({ ...filters, sales_id: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-0 text-sm font-semibold text-slate-900 outline-none">
             <option value="all">영업자 전체</option>
+            <option value="unassigned">미배정</option>
             {users.filter((u) => u.role_name === "영업").map((u) => (
               <option key={u.id} value={u.id}>{u.name}</option>
             ))}
@@ -801,7 +809,14 @@ export default function CustomersPage() {
                   ) : (
                     <div className="min-w-[1660px] space-y-3">
                       <div className="grid items-center gap-3 rounded-2xl bg-slate-50 px-5 py-3 text-[11px] font-bold tracking-[0.12em] text-slate-400 md:grid-cols-[52px_120px_minmax(240px,1.25fr)_120px_160px_minmax(240px,1fr)_110px_120px_140px_120px_120px_72px]">
-                        <span className="text-center">선택</span>
+                        <div className="flex justify-center">
+                          <input 
+                            type="checkbox" 
+                            className="h-4.5 w-4.5 rounded-lg border-slate-300 accent-blue-600 transition-all cursor-pointer"
+                            checked={paginatedData.length > 0 && paginatedData.every(c => selectedIds.includes(c.id))}
+                            onChange={toggleSelectAll} 
+                          />
+                        </div>
                         <span className="text-center">상담일자</span>
                         <span>업체 정보</span>
                         <span className="text-center">대표자명</span>
@@ -819,7 +834,12 @@ export default function CustomersPage() {
                         <div key={c.id} className="group rounded-[24px] border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 px-5 py-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_36px_rgba(15,23,42,0.08)]">
                           <div className="grid items-center gap-3 md:grid-cols-[52px_120px_minmax(240px,1.25fr)_120px_160px_minmax(240px,1fr)_110px_120px_140px_120px_120px_72px]">
                             <div className="flex justify-center">
-                              <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} />
+                              <input 
+                                type="checkbox" 
+                                className="h-4.5 w-4.5 rounded-lg border-slate-300 accent-blue-600 transition-all cursor-pointer"
+                                checked={selectedIds.includes(c.id)} 
+                                onChange={() => toggleSelect(c.id)} 
+                              />
                             </div>
                             <button type="button" onClick={() => openModal(c)} className="text-center text-sm font-semibold text-slate-700">{formatDate(c.consult_date)}</button>
                             <button type="button" onClick={() => openModal(c)} className="text-left">
@@ -852,9 +872,17 @@ export default function CustomersPage() {
                   {paginatedData.map((c) => (
                     <div key={c.id} className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-base font-black text-slate-900">{c.company_name || "-"}</div>
-                          <div className="mt-1 text-sm text-slate-500">{c.customer_name || "-"}</div>
+                        <div className="flex items-center gap-3">
+                          <input 
+                            type="checkbox" 
+                            className="h-5 w-5 rounded-lg border-slate-300 accent-blue-600 transition-all cursor-pointer"
+                            checked={selectedIds.includes(c.id)} 
+                            onChange={() => toggleSelect(c.id)} 
+                          />
+                          <div>
+                            <div className="text-base font-black text-slate-900">{c.company_name || "-"}</div>
+                            <div className="mt-1 text-sm text-slate-500">{c.customer_name || "-"}</div>
+                          </div>
                         </div>
                         <span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-bold ${getStatusTone(c.consult_status)}`}>{c.consult_status || "미지정"}</span>
                       </div>

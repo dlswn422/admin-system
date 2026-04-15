@@ -16,7 +16,8 @@ import {
   ExternalLink,
   Phone,
   User,
-  Trash2
+  Trash2,
+  Clock
 } from "lucide-react";
 
 // --- Interfaces ---
@@ -30,7 +31,7 @@ interface Customer {
   note: string;
   receipt_date: string;
   tm_id: string;
-  consult_date: string;
+  consult_date: string; // "2026-04-10 00:00:00" 또는 ISO String
   consult_status: string;
   consult_memo: string;
 }
@@ -67,6 +68,22 @@ type FilterState = {
   search: string;
   tm_id: string;
   consult_status: string;
+};
+
+// --- Helper Functions ---
+// DB 형식을 datetime-local input 용(YYYY-MM-DDTHH:mm)으로 변환
+const formatToDateTimeLocal = (dateStr: string | undefined) => {
+  if (!dateStr || dateStr.trim() === "") return "";
+  const date = new Date(dateStr.replace(" ", "T"));
+  if (isNaN(date.getTime())) return "";
+  
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
 export default function ConsultationPage() {
@@ -122,9 +139,7 @@ export default function ConsultationPage() {
       const roleName = activeUser.role_name || (activeUser as any).role;
 
       if (roleName !== "관리자") {
-        if (userId) {
-          params.tm_id = String(userId);
-        }
+        if (userId) params.tm_id = String(userId);
       } else {
         if (filters.tm_id) params.tm_id = String(filters.tm_id);
       }
@@ -181,9 +196,7 @@ export default function ConsultationPage() {
   }, []);
 
   useEffect(() => {
-    if (currentUser) {
-      fetchData();
-    }
+    if (currentUser) fetchData();
   }, [filters.date_from, filters.date_to, filters.search, filters.tm_id, filters.consult_status]);
 
   const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
@@ -370,26 +383,43 @@ export default function ConsultationPage() {
       <section className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto p-4 md:p-8">
           <div className="min-w-[1400px] space-y-3">
-            <div className="grid grid-cols-[120px_180px_150px_150px_150px_minmax(300px,1fr)_120px] gap-6 px-8 py-2 text-[11px] font-black uppercase tracking-widest text-slate-400">
-              <span className="text-center">상담일자</span><span>업체명</span><span className="text-center">대표자</span><span className="text-center">연락처</span><span className="text-center">담당자</span><span>상담 메모</span><span className="text-center">진행 상태</span>
+            <div className="grid grid-cols-[160px_180px_150px_150px_150px_minmax(300px,1fr)_120px] gap-6 px-8 py-2 text-[11px] font-black uppercase tracking-widest text-slate-400">
+              <span className="text-center">상담일시</span><span>업체명</span><span className="text-center">대표자</span><span className="text-center">연락처</span><span className="text-center">담당자</span><span>상담 메모</span><span className="text-center">진행 상태</span>
             </div>
             {isLoading ? [1,2,3].map(i => <div key={i} className="h-24 animate-pulse rounded-[28px] bg-slate-50" />) : 
-             paginatedData.length > 0 ? paginatedData.map(c => (
-              <div key={c.id} className="group grid grid-cols-[120px_180px_150px_150px_150px_minmax(300px,1fr)_120px] items-center gap-6 rounded-[28px] border border-slate-100 bg-white p-6 transition-all hover:border-blue-200 hover:shadow-xl">
-                <div className="text-center text-sm font-bold text-slate-500">{c.consult_date?.split("T")[0] || "-"}</div>
-                <div className="cursor-pointer" onClick={() => openModal(c)}>
-                  <div className="truncate text-base font-black text-slate-900">{c.company_name}</div>
-                  <div className="mt-1 truncate text-xs font-medium text-slate-400">{c.note || "비고 없음"}</div>
+             paginatedData.length > 0 ? paginatedData.map(c => {
+              const hasDate = c.consult_date && c.consult_date.trim() !== "";
+              const datePart = hasDate ? c.consult_date.split("T")[0] || c.consult_date.split(" ")[0] : "";
+              const timePart = hasDate ? (c.consult_date.includes("T") ? c.consult_date.split("T")[1].slice(0, 5) : c.consult_date.split(" ")[1]?.slice(0, 5)) : "";
+
+              return (
+                <div key={c.id} className="group grid grid-cols-[160px_180px_150px_150px_150px_minmax(300px,1fr)_120px] items-center gap-6 rounded-[28px] border border-slate-100 bg-white p-6 transition-all hover:border-blue-200 hover:shadow-xl">
+                  <div className="text-center text-sm font-bold text-slate-500">
+                    {hasDate ? (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-slate-900">{datePart}</span>
+                        <span className="text-[11px] font-black text-blue-500">{timePart}</span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-300">-</span>
+                    )}
+                  </div>
+                  <div className="cursor-pointer" onClick={() => openModal(c)}>
+                    <div className="truncate text-base font-black text-slate-900">{c.company_name}</div>
+                    <div className="mt-1 truncate text-xs font-medium text-slate-400">{c.note || "비고 없음"}</div>
+                  </div>
+                  <div className="text-center text-sm font-semibold text-slate-700">{c.customer_name}</div>
+                  <div className="text-center text-sm font-semibold text-slate-700">{c.mobile_phone}</div>
+                  <div className="text-center text-sm font-bold text-blue-600">{(users.find(u => u.id === c.tm_id))?.name || "미배정"}</div>
+                  <div className="line-clamp-2 text-sm font-medium text-slate-600">{c.consult_memo || "기록 없음"}</div>
+                  <div className="flex justify-center"><span className="rounded-full border px-4 py-2 text-[11px] font-black bg-blue-50 text-blue-600">{c.consult_status || "대기"}</span></div>
                 </div>
-                <div className="text-center text-sm font-semibold text-slate-700">{c.customer_name}</div>
-                <div className="text-center text-sm font-semibold text-slate-700">{c.mobile_phone}</div>
-                <div className="text-center text-sm font-bold text-blue-600">{(users.find(u => u.id === c.tm_id))?.name || "미배정"}</div>
-                <div className="line-clamp-2 text-sm font-medium text-slate-600">{c.consult_memo || "기록 없음"}</div>
-                <div className="flex justify-center"><span className="rounded-full border px-4 py-2 text-[11px] font-black bg-blue-50 text-blue-600">{c.consult_status || "대기"}</span></div>
-              </div>
-            )) : <div className="p-20 text-center font-bold text-slate-400">데이터가 없습니다.</div>}
+              );
+             }) : <div className="p-20 text-center font-bold text-slate-400">데이터가 없습니다.</div>}
           </div>
         </div>
+        
+        {/* Pagination */}
         <div className="flex items-center justify-between border-t border-slate-50 px-10 py-8">
           <p className="text-sm font-bold text-slate-400">전체 {customers.length}건 중 {paginatedData.length}건 표시</p>
           <div className="flex items-center gap-2">
@@ -417,7 +447,6 @@ export default function ConsultationPage() {
                 <section className="space-y-6">
                   <div className="flex items-center gap-2 text-slate-900 font-black"><div className="h-4 w-1 bg-blue-500 rounded-full" /> 업체 및 고객 정보 (수정 가능)</div>
                   <div className="grid gap-4 md:grid-cols-3">
-                    {/* 업체명 활성화 */}
                     <div className="space-y-2">
                       <label className="text-[11px] font-black text-slate-400">업체명</label>
                       <input 
@@ -426,7 +455,6 @@ export default function ConsultationPage() {
                         className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-6 font-bold text-slate-900 outline-none focus:ring-2 ring-blue-500/20" 
                       />
                     </div>
-                    {/* 대표자명 활성화 */}
                     <div className="space-y-2">
                       <label className="text-[11px] font-black text-slate-400">대표자명</label>
                       <input 
@@ -435,7 +463,6 @@ export default function ConsultationPage() {
                         className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-6 font-bold text-slate-900 outline-none focus:ring-2 ring-blue-500/20" 
                       />
                     </div>
-                    {/* 핸드폰 번호 활성화 */}
                     <div className="space-y-2">
                       <label className="text-[11px] font-black text-slate-400">핸드폰 번호</label>
                       <input 
@@ -444,7 +471,6 @@ export default function ConsultationPage() {
                         className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-6 font-bold text-slate-900 outline-none focus:ring-2 ring-blue-500/20" 
                       />
                     </div>
-                    {/* 유선 번호 활성화 */}
                     <div className="space-y-2">
                       <label className="text-[11px] font-black text-slate-400">유선 번호</label>
                       <input 
@@ -453,7 +479,6 @@ export default function ConsultationPage() {
                         className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-6 font-bold text-slate-900 outline-none focus:ring-2 ring-blue-500/20" 
                       />
                     </div>
-                    {/* 주소 활성화 */}
                     <div className="md:col-span-2 space-y-2">
                       <label className="text-[11px] font-black text-slate-400">주소</label>
                       <input 
@@ -464,7 +489,9 @@ export default function ConsultationPage() {
                     </div>
                   </div>
                 </section>
+
                 <hr className="border-slate-100" />
+
                 <section className="space-y-6">
                   <div className="flex items-center gap-2 text-slate-900 font-black"><div className="h-4 w-1 bg-emerald-500 rounded-full" /> 상담 관리 영역</div>
                   <div className="grid gap-6 md:grid-cols-2">
@@ -476,8 +503,13 @@ export default function ConsultationPage() {
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[11px] font-black text-slate-400">상담일자</label>
-                      <input type="date" value={formData.consult_date?.split("T")[0] || ""} onChange={(e) => setFormData(p => ({ ...p, consult_date: e.target.value }))} className="h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 font-bold text-slate-900 outline-none focus:ring-2 ring-blue-500/20" />
+                      <label className="text-[11px] font-black text-slate-400 flex items-center gap-1.5"><Clock className="h-3 w-3" /> 상담 일시 (시/분 포함)</label>
+                      <input 
+                        type="datetime-local" 
+                        value={formatToDateTimeLocal(formData.consult_date)} 
+                        onChange={(e) => setFormData(p => ({ ...p, consult_date: e.target.value.replace("T", " ") + ":00" }))} 
+                        className="h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 font-bold text-slate-900 outline-none focus:ring-2 ring-blue-500/20" 
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -485,6 +517,7 @@ export default function ConsultationPage() {
                     <textarea value={formData.consult_memo || ""} onChange={(e) => setFormData(p => ({ ...p, consult_memo: e.target.value }))} className="min-h-[180px] w-full rounded-[30px] border border-slate-200 bg-white p-8 font-bold text-slate-900 outline-none focus:ring-2 ring-blue-500/20" placeholder="상담 내용을 입력하세요." />
                   </div>
                 </section>
+
                 <section className="rounded-[35px] border-2 border-dashed border-slate-200 bg-slate-50/50 p-8">
                   <div className="mb-6 flex items-center justify-between">
                     <h3 className="font-black text-slate-900 flex items-center gap-2"><FileAudio className="h-4 w-4" /> 상담 파일</h3>
@@ -505,6 +538,7 @@ export default function ConsultationPage() {
                     ))}
                   </div>
                 </section>
+
                 <div className="flex gap-4 pt-6">
                   <button type="button" onClick={() => setIsModalOpen(false)} className="h-16 flex-1 rounded-2xl border border-slate-200 font-black text-slate-400 hover:bg-slate-50 transition-all">닫기</button>
                   <button type="submit" className="h-16 flex-[2] rounded-2xl bg-slate-900 font-black text-white shadow-xl hover:bg-slate-800 transition-all">변경 내용 저장</button>

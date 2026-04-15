@@ -69,7 +69,16 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { data, error } = await supabase.from("customers").insert([body]).select();
+    
+    // [핵심 수정] consult_status가 없으면 "대기"로 강제 설정
+    const payload = {
+      ...body,
+      consult_status: body.consult_status && body.consult_status.trim() !== "" 
+                      ? body.consult_status 
+                      : "대기"
+    };
+
+    const { data, error } = await supabase.from("customers").insert([payload]).select();
     
     if (error) throw error;
     return NextResponse.json(data[0]);

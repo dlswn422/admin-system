@@ -36,7 +36,7 @@ interface Customer {
 }
 
 interface UserData {
-  id: string; // 데이터베이스의 유저 고유 ID (PK)
+  id: string;
   name: string;
   role_id?: string;
   role_name: string;
@@ -103,7 +103,7 @@ export default function ConsultationPage() {
 
   const recordingInputRef = useRef<HTMLInputElement | null>(null);
 
-  // --- [수정] Data Fetching: role_id가 아닌 user.id를 엄격하게 사용 ---
+  // --- Data Fetching ---
   const fetchData = useCallback(async (userOverride?: UserData) => {
     const activeUser = userOverride || currentUser;
     if (!activeUser) return;
@@ -118,26 +118,19 @@ export default function ConsultationPage() {
         params.consult_status = filters.consult_status;
       }
 
-      // [핵심 수정] role_id가 아닌 유저 고유 PK(id)를 사용하도록 강제
-      // activeUser.id가 최우선이며, 없을 경우에만 fallback을 고려하지만 가급적 id가 있어야 함
       const userId = activeUser.id; 
       const roleName = activeUser.role_name || (activeUser as any).role;
 
       if (roleName !== "관리자") {
-        // 상담사는 본인의 고유 ID(id)가 파라미터에 담겨야 함
         if (userId) {
           params.tm_id = String(userId);
-        } else {
-          console.error("유저 고유 ID(id)를 찾을 수 없습니다.");
         }
       } else {
-        // 관리자인 경우 필터에서 선택된 ID 사용
         if (filters.tm_id) params.tm_id = String(filters.tm_id);
       }
 
       const queryParams = new URLSearchParams();
       Object.entries(params).forEach(([key, value]) => {
-        // undefined나 null이 문자열로 들어가는 것을 방지
         if (value && value !== "undefined" && value !== "null") {
           queryParams.append(key, value);
         }
@@ -169,10 +162,6 @@ export default function ConsultationPage() {
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
-        
-        // 만약 로그인 시 'id'가 아닌 다른 키로 저장되었다면 여기서 'id'로 매핑
-        // 예: parsedUser.userId 등으로 저장되어 있다면 parsedUser.id = parsedUser.userId;
-        
         setCurrentUser(parsedUser);
         
         const roleName = parsedUser.role_name || parsedUser.role;
@@ -401,7 +390,6 @@ export default function ConsultationPage() {
             )) : <div className="p-20 text-center font-bold text-slate-400">데이터가 없습니다.</div>}
           </div>
         </div>
-        {/* Pagination */}
         <div className="flex items-center justify-between border-t border-slate-50 px-10 py-8">
           <p className="text-sm font-bold text-slate-400">전체 {customers.length}건 중 {paginatedData.length}건 표시</p>
           <div className="flex items-center gap-2">
@@ -427,13 +415,53 @@ export default function ConsultationPage() {
 
               <form onSubmit={handleSave} className="space-y-10">
                 <section className="space-y-6">
-                  <div className="flex items-center gap-2 text-slate-900 font-black"><div className="h-4 w-1 bg-blue-500 rounded-full" /> 업체 기본 정보</div>
+                  <div className="flex items-center gap-2 text-slate-900 font-black"><div className="h-4 w-1 bg-blue-500 rounded-full" /> 업체 및 고객 정보 (수정 가능)</div>
                   <div className="grid gap-4 md:grid-cols-3">
-                    <div className="space-y-2"><label className="text-[11px] font-black text-slate-400">업체명</label><input readOnly value={formData.company_name || ""} className="h-14 w-full rounded-2xl border bg-slate-50 px-6 font-bold text-slate-500 cursor-not-allowed" /></div>
-                    <div className="space-y-2"><label className="text-[11px] font-black text-slate-400">대표자명</label><input readOnly value={formData.customer_name || ""} className="h-14 w-full rounded-2xl border bg-slate-50 px-6 font-bold text-slate-500 cursor-not-allowed" /></div>
-                    <div className="space-y-2"><label className="text-[11px] font-black text-slate-400">핸드폰 번호</label><input readOnly value={formData.mobile_phone || ""} className="h-14 w-full rounded-2xl border bg-slate-50 px-6 font-bold text-slate-500 cursor-not-allowed" /></div>
-                    <div className="space-y-2"><label className="text-[11px] font-black text-slate-400">유선 번호</label><input readOnly value={formData.landline_phone || ""} className="h-14 w-full rounded-2xl border bg-slate-50 px-6 font-bold text-slate-500 cursor-not-allowed" /></div>
-                    <div className="md:col-span-2 space-y-2"><label className="text-[11px] font-black text-slate-400">주소</label><input readOnly value={formData.address || ""} className="h-14 w-full rounded-2xl border bg-slate-50 px-6 font-bold text-slate-500 cursor-not-allowed" /></div>
+                    {/* 업체명 활성화 */}
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-black text-slate-400">업체명</label>
+                      <input 
+                        value={formData.company_name || ""} 
+                        onChange={(e) => setFormData(p => ({ ...p, company_name: e.target.value }))}
+                        className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-6 font-bold text-slate-900 outline-none focus:ring-2 ring-blue-500/20" 
+                      />
+                    </div>
+                    {/* 대표자명 활성화 */}
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-black text-slate-400">대표자명</label>
+                      <input 
+                        value={formData.customer_name || ""} 
+                        onChange={(e) => setFormData(p => ({ ...p, customer_name: e.target.value }))}
+                        className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-6 font-bold text-slate-900 outline-none focus:ring-2 ring-blue-500/20" 
+                      />
+                    </div>
+                    {/* 핸드폰 번호 활성화 */}
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-black text-slate-400">핸드폰 번호</label>
+                      <input 
+                        value={formData.mobile_phone || ""} 
+                        onChange={(e) => setFormData(p => ({ ...p, mobile_phone: e.target.value }))}
+                        className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-6 font-bold text-slate-900 outline-none focus:ring-2 ring-blue-500/20" 
+                      />
+                    </div>
+                    {/* 유선 번호 활성화 */}
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-black text-slate-400">유선 번호</label>
+                      <input 
+                        value={formData.landline_phone || ""} 
+                        onChange={(e) => setFormData(p => ({ ...p, landline_phone: e.target.value }))}
+                        className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-6 font-bold text-slate-900 outline-none focus:ring-2 ring-blue-500/20" 
+                      />
+                    </div>
+                    {/* 주소 활성화 */}
+                    <div className="md:col-span-2 space-y-2">
+                      <label className="text-[11px] font-black text-slate-400">주소</label>
+                      <input 
+                        value={formData.address || ""} 
+                        onChange={(e) => setFormData(p => ({ ...p, address: e.target.value }))}
+                        className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-6 font-bold text-slate-900 outline-none focus:ring-2 ring-blue-500/20" 
+                      />
+                    </div>
                   </div>
                 </section>
                 <hr className="border-slate-100" />
@@ -449,7 +477,7 @@ export default function ConsultationPage() {
                     </div>
                     <div className="space-y-2">
                       <label className="text-[11px] font-black text-slate-400">상담일자</label>
-                      <input type="date" value={formData.consult_date || ""} onChange={(e) => setFormData(p => ({ ...p, consult_date: e.target.value }))} className="h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 font-bold text-slate-900 outline-none focus:ring-2 ring-blue-500/20" />
+                      <input type="date" value={formData.consult_date?.split("T")[0] || ""} onChange={(e) => setFormData(p => ({ ...p, consult_date: e.target.value }))} className="h-16 w-full rounded-2xl border border-slate-200 bg-white px-6 font-bold text-slate-900 outline-none focus:ring-2 ring-blue-500/20" />
                     </div>
                   </div>
                   <div className="space-y-2">

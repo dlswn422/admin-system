@@ -99,6 +99,7 @@ export default function CustomersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [consultCodes, setConsultCodes] = useState<CommonCode[]>([]);
   const [salesCodes, setSalesCodes] = useState<CommonCode[]>([]);
+  const [totalCount, setTotalCount] = useState(0); // 🌟 페이징을 위한 전체 개수 상태 추가
   const [isLoading, setIsLoading] = useState(true);
 
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
@@ -174,7 +175,7 @@ export default function CustomersPage() {
       const query = new URLSearchParams({
         ...filters,
         limit: itemsPerPage.toString(),
-        offset: ((currentPage - 1) * itemsPerPage).toString(),
+        offset: ((currentPage - 1) * itemsPerPage).toString(), // 🌟 서버 사이드 오프셋 계산
       }).toString();
 
       const [cRes, uRes, cCodeRes, sCodeRes] = await Promise.all([
@@ -185,7 +186,13 @@ export default function CustomersPage() {
       ]);
 
       const cData = await cRes.json();
-      setCustomers(Array.isArray(cData) ? cData : Array.isArray(cData?.data) ? cData.data : []);
+      // 🌟 API 응답 구조 변화에 맞춰 데이터 추출 로직 수정
+      const resultData = Array.isArray(cData) ? cData : Array.isArray(cData?.data) ? cData.data : [];
+      const count = cData?.totalCount !== undefined ? cData.totalCount : resultData.length;
+
+      setCustomers(resultData);
+      setTotalCount(count); // 🌟 전체 개수 저장
+      
       setUsers(await uRes.json());
       setConsultCodes(await cCodeRes.json());
       setSalesCodes(await sCodeRes.json());
@@ -224,12 +231,13 @@ export default function CustomersPage() {
     fetchData();
   }, [fetchData]);
 
+  // 🌟 프론트엔드 slice 로직 제거 (서버에서 이미 잘려서 오기 때문)
   const paginatedData = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return customers.slice(start, start + itemsPerPage);
-  }, [customers, currentPage, itemsPerPage]);
+    return customers; 
+  }, [customers]);
 
-  const totalPages = Math.max(1, Math.ceil(customers.length / itemsPerPage));
+  // 🌟 totalCount 기반으로 전체 페이지 계산
+  const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
 
   const totalCommission = useMemo(
     () =>
@@ -272,9 +280,9 @@ export default function CustomersPage() {
     if (filters.sales_status !== "all") parts.push("영업 상태");
     if (filters.date_from || filters.date_to) parts.push("기간 필터");
 
-    if (parts.length === 0) return `총 ${customers.length}건`;
-    return `${parts.join(" · ")} · ${customers.length}건`;
-  }, [filters, customers.length]);
+    if (parts.length === 0) return `총 ${totalCount}건`;
+    return `${parts.join(" · ")} · ${totalCount}건`;
+  }, [filters, totalCount]);
 
   const toggleSelectAll = () => {
     const currentIds = paginatedData.map((c) => c.id);
@@ -319,7 +327,6 @@ export default function CustomersPage() {
     }
   };
 
-  // 일괄 삭제 버튼 클릭 시 실행
   const handleBulkDelete = () => {
     if (selectedIds.length === 0) {
       return showToast("삭제할 고객을 먼저 선택해주세요.", "error");
@@ -450,7 +457,6 @@ export default function CustomersPage() {
     }
   };
 
-  // 개별 삭제 버튼 클릭 시 실행
   const openDeleteModal = (customer: Customer) => {
     setDeleteTarget(customer);
     setIsBulkDeleteMode(false);
@@ -537,26 +543,22 @@ export default function CustomersPage() {
     }
   };
 
-  // 삭제 로직 최종 해결 버전
   const confirmDelete = async () => {
     try {
       let res;
       if (isBulkDeleteMode) {
-        // 일괄 삭제: /api/customers 주소로 배열 전달
         res = await fetch(`/api/customers`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ids: selectedIds }),
         });
       } else {
-        // 개별 삭제: /api/customers/[id] 주소로 호출
         if (!deleteTarget) return;
         res = await fetch(`/api/customers/${encodeURIComponent(deleteTarget.id)}`, {
           method: "DELETE",
         });
       }
 
-      // 응답 데이터 읽기 (JSON이 비어있을 경우를 대비해 catch 처리)
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
@@ -664,7 +666,7 @@ export default function CustomersPage() {
       {/* Stats Cards */}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "전체 고객", value: customers.length.toString().padStart(2, "0"), icon: Users, tone: "bg-blue-500/10 text-blue-600 ring-blue-500/15" },
+          { label: "전체 고객", value: totalCount.toString().padStart(2, "0"), icon: Users, tone: "bg-blue-500/10 text-blue-600 ring-blue-500/15" },
           { label: "TM 배정 고객", value: assignedTmCount.toString().padStart(2, "0"), icon: Mic, tone: "bg-emerald-500/10 text-emerald-600 ring-emerald-500/15" },
           { label: "영업 배정 고객", value: assignedSalesCount.toString().padStart(2, "0"), icon: BriefcaseBusiness, tone: "bg-violet-500/10 text-violet-600 ring-violet-500/15" },
           { label: "누적 정산금액", value: `₩${totalCommission.toLocaleString()}`, icon: Wallet, tone: "bg-slate-900/10 text-slate-700 ring-slate-300/40" },
@@ -758,7 +760,6 @@ export default function CustomersPage() {
               <p className="mt-1 text-sm text-slate-500">고객 기본정보와 상담/영업 상태를 빠르게 조회하고 수정할 수 있습니다.</p>
             </div>
             <div className="flex items-center gap-3">
-              {/* 일괄 삭제 버튼 */}
               {selectedIds.length > 0 && (
                 <button
                   onClick={handleBulkDelete}
@@ -781,7 +782,6 @@ export default function CustomersPage() {
               [1, 2, 3, 4].map((i) => <div key={i} className="h-24 rounded-[24px] border border-slate-100 bg-slate-50/80 animate-pulse" />)
             ) : (
               <>
-                {/* Table Header Grid */}
                 <div className="grid items-center gap-3 rounded-2xl bg-slate-50 px-5 py-3 text-[10px] font-bold tracking-[0.1em] text-slate-400 grid-cols-[40px_90px_minmax(120px,1.5fr)_90px_110px_minmax(120px,2fr)_80px_90px_90px_90px_90px_40px]">
                   <div className="flex justify-center">
                     <input type="checkbox" className="h-4 w-4 rounded border-slate-300 accent-blue-600 cursor-pointer" checked={paginatedData.length > 0 && paginatedData.every(c => selectedIds.includes(c.id))} onChange={toggleSelectAll} />
@@ -789,7 +789,6 @@ export default function CustomersPage() {
                   <span className="text-center">상담일자</span><span>업체 정보</span><span className="text-center">대표자명</span><span className="text-center">핸드폰</span><span>주소</span><span className="text-center">접수일</span><span className="text-center">담당 TM</span><span className="text-center">상담상태</span><span className="text-center">영업담당</span><span className="text-right">영업수당</span><span className="text-center">삭제</span>
                 </div>
 
-                {/* Table Rows */}
                 {paginatedData.map((c) => {
                   const hasDate = c.consult_date && c.consult_date !== "null";
                   const cleanDateStr = hasDate ? c.consult_date.replace("T", " ") : "";
@@ -832,7 +831,7 @@ export default function CustomersPage() {
 
           {/* Pagination */}
           <div className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-5 md:flex-row md:items-center md:justify-between">
-            <div className="text-sm font-semibold text-slate-400">총 {customers.length}건 중 {paginatedData.length}건 표시</div>
+            <div className="text-sm font-semibold text-slate-400">총 {totalCount}건 중 {paginatedData.length}건 표시</div>
             <div className="flex items-center justify-end gap-2">
               <button type="button" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 hover:bg-slate-900 hover:text-white disabled:opacity-20 transition-all"><ChevronLeft className="h-5 w-5" /></button>
               <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-3">

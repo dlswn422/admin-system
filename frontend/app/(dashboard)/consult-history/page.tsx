@@ -17,7 +17,9 @@ import {
   Phone,
   User,
   Trash2,
-  Clock
+  Clock,
+  ListOrdered,
+  MapPin
 } from "lucide-react";
 
 // --- Interfaces ---
@@ -31,7 +33,7 @@ interface Customer {
   note: string;
   receipt_date: string;
   tm_id: string;
-  consult_date: string; // 예: "2026-04-10 15:10:00" 또는 ISO
+  consult_date: string;
   consult_status: string;
   consult_memo: string;
 }
@@ -77,18 +79,19 @@ export default function ConsultationPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
   const [consultCodes, setConsultCodes] = useState<CommonCode[]>([]);
+  const [totalCount, setTotalCount] = useState(0); // 🌟 전체 데이터 개수 상태 추가
   const [isLoading, setIsLoading] = useState(true);
 
   const [filters, setFilters] = useState<FilterState>({
     date_from: "",
     date_to: "",
     search: "",
-    tm_id: "",
-    consult_status: "all",
+    tm_id: "all",
+    consult_status: "대기", // 초기값 대기
   });
   
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10); // 🌟 기본 10개
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -104,18 +107,27 @@ export default function ConsultationPage() {
 
   const recordingInputRef = useRef<HTMLInputElement | null>(null);
 
-  // --- 시간 선택용 데이터 ---
   const hoursList = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
   const minutesList = ["00", "10", "20", "30", "40", "50"];
 
-  // --- Data Fetching ---
+  const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    window.setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  // --- Data Fetching (서버 사이드 페이징 적용) ---
   const fetchData = useCallback(async (userOverride?: UserData) => {
     const activeUser = userOverride || currentUser;
     if (!activeUser) return;
 
     setIsLoading(true);
     try {
-      const params: Record<string, string> = { date_type: "상담일" };
+      const params: Record<string, string> = { 
+        date_type: "상담일",
+        limit: String(itemsPerPage),
+        offset: String((currentPage - 1) * itemsPerPage) // 🌟 페이지에 따른 시작점 계산
+      };
+      
       if (filters.date_from) params.date_from = filters.date_from;
       if (filters.date_to) params.date_to = filters.date_to;
       if (filters.search) params.search = filters.search;
@@ -123,22 +135,17 @@ export default function ConsultationPage() {
         params.consult_status = filters.consult_status;
       }
 
-      const userId = activeUser.id; 
       const roleName = activeUser.role_name || (activeUser as any).role;
-
+      // 🌟 [권한 로직 보존]
       if (roleName !== "관리자") {
-        if (userId) params.tm_id = String(userId);
+        if (activeUser.id) params.tm_id = String(activeUser.id);
       } else {
-        if (filters.tm_id) params.tm_id = String(filters.tm_id);
+        if (filters.tm_id && filters.tm_id !== "all") {
+          params.tm_id = String(filters.tm_id);
+        }
       }
 
-      const queryParams = new URLSearchParams();
-      Object.entries(params).forEach(([key, value]) => {
-        if (value && value !== "undefined" && value !== "null") {
-          queryParams.append(key, value);
-        }
-      });
-
+      const queryParams = new URLSearchParams(params);
       const [cRes, uRes, codeRes] = await Promise.all([
         fetch(`/api/customers?${queryParams.toString()}`),
         fetch("/api/users"),
@@ -149,15 +156,20 @@ export default function ConsultationPage() {
       const uData = await uRes.json();
       const codeData = await codeRes.json();
 
-      setCustomers(Array.isArray(cData) ? cData : cData?.data || []);
+      // 🌟 서버 응답 구조 대응
+      const resultData = Array.isArray(cData) ? cData : (cData.data || []);
+      setCustomers(resultData);
+      setTotalCount(cData.totalCount || resultData.length);
+      
       setUsers(Array.isArray(uData) ? uData : []);
-      setConsultCodes(Array.isArray(codeData) ? codeData : []);
+      // 상담 상태에서 '전체' 제외
+      setConsultCodes(Array.isArray(codeData) ? codeData.filter(c => c.code_name !== "전체") : []);
     } catch (e) {
       console.error("데이터 로드 에러:", e);
     } finally {
       setIsLoading(false);
     }
-  }, [filters, currentUser]);
+  }, [filters, currentUser, currentPage, itemsPerPage]);
 
   // --- 초기 실행 ---
   useEffect(() => {
@@ -171,61 +183,22 @@ export default function ConsultationPage() {
           setFilters(prev => ({ ...prev, tm_id: String(parsedUser.id) }));
         }
         fetchData(parsedUser); 
-      } catch (e) {
-        window.location.href = "/login";
-      }
-    } else {
-      window.location.href = "/login";
-    }
+      } catch { window.location.href = "/login"; }
+    } else { window.location.href = "/login"; }
   }, []);
 
+  // 필터 및 페이지 변경 시 감지
   useEffect(() => {
     if (currentUser) fetchData();
-  }, [filters.date_from, filters.date_to, filters.search, filters.tm_id, filters.consult_status]);
+  }, [currentUser, filters.date_from, filters.date_to, filters.search, filters.tm_id, filters.consult_status, currentPage, itemsPerPage]);
 
-  const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
-    setToast({ message, type });
-    window.setTimeout(() => setToast(null), 3000);
-  }, []);
-
-  // --- 녹취 파일 관련 함수들 ---
   const fetchRecordings = async (customerId: string) => {
     setIsRecordingsLoading(true);
     try {
       const res = await fetch(`/api/recordings/upload?customer_id=${customerId}`);
       const data = await res.json();
       setRecordings(Array.isArray(data) ? data : []);
-    } catch {
-      setRecordings([]);
-    } finally {
-      setIsRecordingsLoading(false);
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !selectedCustomer || !currentUser) return;
-
-    setIsUploading(true);
-    try {
-      const body = new FormData();
-      body.append("file", file);
-      body.append("customer_id", selectedCustomer.id);
-      body.append("created_by", String(currentUser.id));
-      
-      const res = await fetch("/api/recordings/upload", { method: "POST", body });
-      if (res.ok) {
-        showToast("파일이 업로드되었습니다.");
-        await fetchRecordings(selectedCustomer.id);
-      } else {
-        showToast("업로드 실패", "error");
-      }
-    } catch {
-      showToast("업로드 실패", "error");
-    } finally {
-      setIsUploading(false);
-      if (recordingInputRef.current) recordingInputRef.current.value = "";
-    }
+    } catch { setRecordings([]); } finally { setIsRecordingsLoading(false); }
   };
 
   const confirmDeleteRecording = async () => {
@@ -237,21 +210,15 @@ export default function ConsultationPage() {
         body: JSON.stringify({ id: recordingDeleteTarget.id })
       });
       if (res.ok) {
-        showToast("녹취 파일이 삭제되었습니다.");
+        showToast("삭제되었습니다.");
         setIsRecordingDeleteModalOpen(false);
-        setRecordingDeleteTarget(null);
         if (selectedCustomer) await fetchRecordings(selectedCustomer.id);
-      } else {
-        showToast("삭제 실패", "error");
       }
-    } catch {
-      showToast("삭제 실패", "error");
-    }
+    } catch { showToast("삭제 실패", "error"); }
   };
 
   const openModal = async (customer: Customer) => {
     setSelectedCustomer(customer);
-    // 모달을 열 때 날짜 형식을 "YYYY-MM-DD HH:mm:00"으로 통일하여 셋팅
     const baseDate = customer.consult_date ? customer.consult_date.replace("T", " ") : "";
     setFormData({ ...customer, consult_date: baseDate });
     setIsModalOpen(true);
@@ -270,8 +237,6 @@ export default function ConsultationPage() {
       setIsModalOpen(false);
       showToast("정보가 저장되었습니다.");
       fetchData();
-    } else {
-      showToast("저장 실패", "error");
     }
   };
 
@@ -282,33 +247,40 @@ export default function ConsultationPage() {
       date_from: "",
       date_to: "",
       search: "",
-      tm_id: roleName === "관리자" ? "" : String(currentUser.id),
-      consult_status: "all",
+      tm_id: roleName === "관리자" ? "all" : String(currentUser.id),
+      consult_status: "대기",
     });
     setCurrentPage(1);
   };
 
-  const paginatedData = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return customers.slice(start, start + itemsPerPage);
-  }, [customers, currentPage, itemsPerPage]);
-
-  const totalPages = Math.max(1, Math.ceil(customers.length / itemsPerPage));
+  const paginatedData = useMemo(() => customers, [customers]); // 서버에서 잘려오므로 그대로 사용
+  const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
 
   if (!currentUser) return null;
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-8 pb-20">
-      <input ref={recordingInputRef} type="file" className="hidden" onChange={handleFileUpload} />
+    <div className="mx-auto max-w-[1600px] space-y-8 pb-20 px-4 md:px-0 text-slate-900">
+      <input ref={recordingInputRef} type="file" className="hidden" onChange={async (e) => {
+        const file = e.target.files?.[0];
+        if (file && selectedCustomer) {
+          setIsUploading(true);
+          const body = new FormData();
+          body.append("file", file);
+          body.append("customer_id", selectedCustomer.id);
+          body.append("created_by", String(currentUser.id));
+          const res = await fetch("/api/recordings/upload", { method: "POST", body });
+          if (res.ok) { fetchRecordings(selectedCustomer.id); showToast("업로드 성공"); }
+          setIsUploading(false);
+        }
+      }} />
 
       {toast && (
-        <div className={`fixed right-6 top-6 z-[11000] flex items-center gap-3 rounded-[22px] px-5 py-4 shadow-2xl backdrop-blur-2xl animate-in slide-in-from-right-8 ${toast.type === "success" ? "bg-slate-900/90 text-white" : "bg-rose-600/90 text-white"}`}>
-          <div className="h-2 w-2 rounded-full bg-current animate-pulse" />
+        <div className={`fixed right-6 top-6 z-[11000] flex items-center gap-3 rounded-[22px] border border-white/10 px-5 py-4 shadow-2xl backdrop-blur-2xl animate-in slide-in-from-right-8 ${toast.type === "success" ? "bg-slate-900/90 text-white" : "bg-rose-600/90 text-white"}`}>
           <p className="text-sm font-bold tracking-tight">{toast.message}</p>
         </div>
       )}
 
-      {/* Header */}
+      {/* Header Area */}
       <section className="soft-scale-in">
         <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(8,15,30,0.96),rgba(11,18,36,0.88))] p-8 shadow-2xl backdrop-blur-2xl">
           <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),transparent_34%,transparent_72%,rgba(59,130,246,0.06))]" />
@@ -329,25 +301,30 @@ export default function ConsultationPage() {
         </div>
       </section>
 
-      {/* Filters */}
+      {/* Filter Area */}
       <section className="rounded-[28px] border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur-xl">
         <div className="grid items-start gap-4 xl:grid-cols-[140px_1fr]">
           <div className="flex h-14 items-center justify-center gap-3 rounded-[20px] bg-slate-100/70 px-4 text-sm font-black text-slate-600">
             <Filter className="h-4 w-4" /> 상담일자
           </div>
           <div className="grid items-start gap-3 md:grid-cols-[160px_30px_160px_1fr]">
-            <input type="date" value={filters.date_from} onChange={(e) => setFilters(p => ({ ...p, date_from: e.target.value }))} className="h-14 rounded-[20px] border-2 border-slate-300 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 shadow-inner" />
+            <input type="date" value={filters.date_from} onChange={(e) => setFilters(p => ({ ...p, date_from: e.target.value }))} className="h-14 rounded-[20px] border-2 border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 shadow-inner" />
             <div className="flex h-14 items-center justify-center font-black text-slate-400">~</div>
-            <input type="date" value={filters.date_to} onChange={(e) => setFilters(p => ({ ...p, date_to: e.target.value }))} className="h-14 rounded-[20px] border-2 border-slate-300 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 shadow-inner" />
+            <input type="date" value={filters.date_to} onChange={(e) => setFilters(p => ({ ...p, date_to: e.target.value }))} className="h-14 rounded-[20px] border-2 border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 shadow-inner" />
             <div className="relative">
               <Search className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400" />
-              <input value={filters.search} onChange={(e) => setFilters(p => ({ ...p, search: e.target.value }))} placeholder="업체명, 고객명 검색" className="h-14 w-full rounded-[20px] border-2 border-slate-300 bg-white pl-12 pr-5 text-sm font-bold text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 shadow-inner" />
+              <input value={filters.search} onChange={(e) => setFilters(p => ({ ...p, search: e.target.value }))} placeholder="업체명, 고객명 검색" className="h-14 w-full rounded-[20px] border-2 border-slate-200 bg-white pl-12 pr-5 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 shadow-inner" />
             </div>
           </div>
         </div>
 
         <div className="mt-4 grid gap-3 xl:grid-cols-[1fr_1fr_auto_auto]">
-          <select disabled={(currentUser.role_name || (currentUser as any).role) !== "관리자"} value={filters.tm_id || "all"} onChange={(e) => setFilters(p => ({ ...p, tm_id: e.target.value === "all" ? "" : e.target.value }))} className="h-14 rounded-[20px] border border-slate-300 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 disabled:bg-slate-50 shadow-inner">
+          <select 
+            disabled={(currentUser.role_name || (currentUser as any).role) !== "관리자"} 
+            value={filters.tm_id} 
+            onChange={(e) => setFilters(p => ({ ...p, tm_id: e.target.value }))} 
+            className="h-14 rounded-[20px] border-2 border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 disabled:bg-slate-50 shadow-inner"
+          >
             {(currentUser.role_name || (currentUser as any).role) === "관리자" ? (
               <>
                 <option value="all">담당 상담원 전체</option>
@@ -356,229 +333,176 @@ export default function ConsultationPage() {
             ) : <option value={currentUser.id}>{currentUser.name}</option>}
           </select>
 
-          <select value={filters.consult_status} onChange={(e) => setFilters(p => ({ ...p, consult_status: e.target.value }))} className="h-14 rounded-[20px] border border-slate-300 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 shadow-inner">
-            <option value="all">상담 상태 전체</option>
+          <select value={filters.consult_status} onChange={(e) => setFilters(p => ({ ...p, consult_status: e.target.value }))} className="h-14 rounded-[20px] border-2 border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 shadow-inner">
             {consultCodes.map(c => <option key={c.code_value} value={c.code_name}>{c.code_name}</option>)}
           </select>
 
-          <button onClick={handleResetFilters} className="h-14 rounded-[20px] border border-slate-300 bg-white px-8 text-sm font-bold text-slate-500 hover:bg-slate-50 transition-all">초기화</button>
-          <div className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-slate-900 px-6 text-sm font-bold text-white shadow-lg"><Sparkles className="h-4 w-4 text-blue-400" /> 검색 {customers.length}건</div>
+          <button onClick={handleResetFilters} className="h-14 rounded-[20px] border-2 border-slate-200 bg-white px-8 text-sm font-bold text-slate-500 hover:bg-slate-50 transition-all shadow-sm">초기화</button>
+          <div className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-slate-900 px-6 text-sm font-bold text-white shadow-lg"><Sparkles className="h-4 w-4 text-blue-400" /> 검색 {totalCount}건</div>
         </div>
       </section>
 
       {/* Table Section */}
       <section className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-50 px-8 py-5 bg-white">
+           <div className="flex items-center gap-2 text-slate-900">
+             <ListOrdered className="h-5 w-5 text-slate-400" />
+             <h2 className="text-lg font-black tracking-tight">상담 레지스트리</h2>
+           </div>
+           <div className="flex items-center gap-3">
+             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Rows per page</span>
+             <select value={itemsPerPage} onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }} className="h-10 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 outline-none transition-all">
+               <option value={10}>10개</option><option value={50}>50개</option><option value={100}>100개</option>
+             </select>
+           </div>
+        </div>
         <div className="overflow-x-auto p-4 md:p-8">
           <div className="min-w-[1400px] space-y-3">
             <div className="grid grid-cols-[160px_180px_150px_150px_150px_minmax(300px,1fr)_120px] gap-6 px-8 py-2 text-[11px] font-black uppercase tracking-widest text-slate-400">
               <span className="text-center">상담일시</span><span>업체명</span><span className="text-center">대표자</span><span className="text-center">연락처</span><span className="text-center">담당자</span><span>상담 메모</span><span className="text-center">진행 상태</span>
             </div>
-            {isLoading ? [1,2,3].map(i => <div key={i} className="h-24 animate-pulse rounded-[28px] bg-slate-50" />) : 
+            {isLoading ? [1,2,3,4].map(i => <div key={i} className="h-24 animate-pulse rounded-[28px] bg-slate-50" />) : 
              paginatedData.length > 0 ? paginatedData.map(c => {
               const hasDate = c.consult_date && c.consult_date.trim() !== "" && c.consult_date !== "null";
-              // DB에서 넘어온 문자열에서 T를 공백으로 치환하여 안전하게 파싱
-              const cleanDate = hasDate ? c.consult_date.replace("T", " ") : "";
-              const datePart = hasDate ? cleanDate.split(" ")[0] : "";
-              const timePart = hasDate ? cleanDate.split(" ")[1]?.slice(0, 5) : "";
+              const datePart = hasDate ? c.consult_date.split(" ")[0].replace(/-/g, ".") : "-";
+              const timePart = hasDate ? c.consult_date.split(" ")[1]?.slice(0, 5) : "";
 
               return (
-                <div key={c.id} className="group grid grid-cols-[160px_180px_150px_150px_150px_minmax(300px,1fr)_120px] items-center gap-6 rounded-[28px] border border-slate-100 bg-white p-6 transition-all hover:border-blue-200 hover:shadow-xl">
-                  <div className="text-center text-sm font-bold text-slate-500">
-                    {hasDate ? (
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-slate-900 font-black">{datePart}</span>
-                        <span className="text-[12px] font-black text-blue-600">{timePart}</span>
-                      </div>
-                    ) : (
-                      <span className="text-slate-300">-</span>
-                    )}
+                <div key={c.id} onClick={() => openModal(c)} className="group grid grid-cols-[160px_180px_150px_150px_150px_minmax(300px,1fr)_120px] items-center gap-6 rounded-[28px] border border-slate-100 bg-white p-6 transition-all hover:border-blue-200 hover:shadow-xl cursor-pointer">
+                  <div className="text-center flex flex-col gap-0.5">
+                    <span className="text-[11px] font-black text-slate-900">{datePart}</span>
+                    {timePart && <span className="text-[10px] font-bold text-blue-500">{timePart}</span>}
                   </div>
-                  <div className="cursor-pointer" onClick={() => openModal(c)}>
+                  <div className="overflow-hidden">
                     <div className="truncate text-base font-black text-slate-900">{c.company_name}</div>
-                    <div className="mt-1 truncate text-xs font-medium text-slate-400">{c.note || "비고 없음"}</div>
+                    <div className="truncate text-[10px] text-slate-400 font-medium">{c.note || "비고 없음"}</div>
                   </div>
                   <div className="text-center text-sm font-semibold text-slate-700">{c.customer_name}</div>
                   <div className="text-center text-sm font-semibold text-slate-700">{c.mobile_phone}</div>
                   <div className="text-center text-sm font-bold text-blue-600">{(users.find(u => u.id === c.tm_id))?.name || "미배정"}</div>
-                  <div className="line-clamp-2 text-sm font-medium text-slate-600">{c.consult_memo || "기록 없음"}</div>
-                  <div className="flex justify-center"><span className="rounded-full border px-4 py-2 text-[11px] font-black bg-blue-50 text-blue-600">{c.consult_status || "대기"}</span></div>
+                  <div className="line-clamp-1 text-sm text-slate-500">{c.consult_memo || "기록 없음"}</div>
+                  <div className="flex justify-center"><span className="rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-[11px] font-black text-blue-600">{c.consult_status}</span></div>
                 </div>
               );
-             }) : <div className="p-20 text-center font-bold text-slate-400">데이터가 없습니다.</div>}
+             }) : <div className="py-20 text-center text-slate-300 font-bold italic">데이터가 없습니다.</div>}
           </div>
         </div>
         
-        {/* Pagination */}
-        <div className="flex items-center justify-between border-t border-slate-50 px-10 py-8">
-          <p className="text-sm font-bold text-slate-400">전체 {customers.length}건 중 {paginatedData.length}건 표시</p>
+        {/* Pagination Section */}
+        <div className="flex items-center justify-between border-t border-slate-50 bg-slate-50/50 px-10 py-8">
+          <p className="text-sm font-bold text-slate-400">Total {totalCount} 건</p>
           <div className="flex items-center gap-2">
-            <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="rounded-2xl border p-3 disabled:opacity-20 transition-all hover:bg-slate-50"><ChevronLeft className="h-5 w-5" /></button>
-            <div className="rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black text-white">{currentPage} / {totalPages}</div>
-            <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="rounded-2xl border p-3 disabled:opacity-20 transition-all hover:bg-slate-50"><ChevronRight className="h-5 w-5" /></button>
+            <button disabled={currentPage === 1} onClick={()=>setCurrentPage(p=>p-1)} className="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-slate-200 bg-white text-slate-600 shadow-sm transition-all hover:bg-slate-900 hover:text-white disabled:opacity-20"><ChevronLeft className="h-5 w-5" /></button>
+            <div className="flex h-12 items-center rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black text-white shadow-lg">{currentPage} / {totalPages}</div>
+            <button disabled={currentPage === totalPages} onClick={()=>setCurrentPage(p=>p+1)} className="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-slate-200 bg-white text-slate-600 shadow-sm transition-all hover:bg-slate-900 hover:text-white disabled:opacity-20"><ChevronRight className="h-5 w-5" /></button>
           </div>
         </div>
       </section>
 
-      {/* Modal Section */}
+      {/* --- 🌟 Detail Modal (콤팩트 최적화) --- */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/40 p-6 backdrop-blur-xl">
-          <div className="relative flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-[40px] bg-white shadow-2xl border border-slate-200">
-            <div className="overflow-y-auto p-10 md:p-14">
-              <div className="mb-10 flex justify-between items-center">
-                <div>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-1.5 text-[11px] font-black uppercase text-slate-500"><UserCheck className="h-3.5 w-3.5" /> 상세 정보</div>
-                  <h2 className="mt-4 text-3xl font-black text-slate-900">상담 데이터 상세</h2>
+        <div className="fixed inset-0 z-[10000] flex items-end md:items-center justify-center bg-slate-950/60 p-0 md:p-4 backdrop-blur-sm">
+          <div className="relative flex h-[94vh] md:h-auto md:max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[40px] md:rounded-[40px] bg-white shadow-2xl border border-slate-200 text-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-3">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-xl bg-blue-600 flex items-center justify-center text-white"><UserCheck className="h-4 w-4" /></div>
+                <h2 className="text-base font-black tracking-tight text-slate-900">상담 상세 설정</h2>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="h-9 w-9 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:text-slate-900 transition-all"><X className="h-5 w-5" /></button>
+            </div>
+
+            <form onSubmit={handleSave} className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-hide text-slate-900">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 ml-1 uppercase">업체명</label>
+                  <input value={formData.company_name || ""} onChange={(e) => setFormData(p => ({ ...p, company_name: e.target.value }))} className="h-10 w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-4 text-xs font-bold text-slate-900 focus:border-blue-500 focus:bg-white transition-all outline-none" />
                 </div>
-                <button onClick={() => setIsModalOpen(false)} className="h-12 w-12 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 transition-all"><X /></button>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 ml-1 uppercase">대표자</label>
+                  <input value={formData.customer_name || ""} onChange={(e) => setFormData(p => ({ ...p, customer_name: e.target.value }))} className="h-10 w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-4 text-xs font-bold text-slate-900 focus:border-blue-500 focus:bg-white transition-all outline-none" />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 ml-1 uppercase tracking-tight">연락처</label>
+                  <input value={formData.mobile_phone || ""} onChange={(e) => setFormData(p => ({ ...p, mobile_phone: e.target.value }))} className="h-10 w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-4 text-xs font-bold text-slate-900 focus:border-blue-500 focus:bg-white transition-all outline-none" />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 ml-1 uppercase flex items-center gap-1"><MapPin className="h-3 w-3" /> 상세 주소</label>
+                  <textarea value={formData.address || ""} onChange={(e) => setFormData(p => ({ ...p, address: e.target.value }))} className="h-16 w-full rounded-xl border-2 border-slate-100 bg-slate-50 p-3 text-xs font-bold text-slate-900 focus:border-blue-500 focus:bg-white transition-all resize-none outline-none" placeholder="주소를 입력하세요." />
+                </div>
               </div>
 
-              <form onSubmit={handleSave} className="space-y-10">
-                <section className="space-y-6">
-                  <div className="flex items-center gap-2 text-slate-900 font-black"><div className="h-4 w-1 bg-blue-500 rounded-full" /> 업체 및 고객 정보 (수정 가능)</div>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-black text-slate-400">업체명</label>
-                      <input 
-                        value={formData.company_name || ""} 
-                        onChange={(e) => setFormData(p => ({ ...p, company_name: e.target.value }))}
-                        className="h-14 w-full rounded-2xl border-2 border-slate-300 bg-white px-6 font-bold text-slate-900 outline-none focus:border-blue-500 transition-all" 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-black text-slate-400">대표자명</label>
-                      <input 
-                        value={formData.customer_name || ""} 
-                        onChange={(e) => setFormData(p => ({ ...p, customer_name: e.target.value }))}
-                        className="h-14 w-full rounded-2xl border-2 border-slate-300 bg-white px-6 font-bold text-slate-900 outline-none focus:border-blue-500 transition-all" 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-black text-slate-400">핸드폰 번호</label>
-                      <input 
-                        value={formData.mobile_phone || ""} 
-                        onChange={(e) => setFormData(p => ({ ...p, mobile_phone: e.target.value }))}
-                        className="h-14 w-full rounded-2xl border-2 border-slate-300 bg-white px-6 font-bold text-slate-900 outline-none focus:border-blue-500 transition-all" 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-black text-slate-400">유선 번호</label>
-                      <input 
-                        value={formData.landline_phone || ""} 
-                        onChange={(e) => setFormData(p => ({ ...p, landline_phone: e.target.value }))}
-                        className="h-14 w-full rounded-2xl border-2 border-slate-300 bg-white px-6 font-bold text-slate-900 outline-none focus:border-blue-500 transition-all" 
-                      />
-                    </div>
-                    <div className="md:col-span-3 space-y-2">
-                      <label className="text-[11px] font-black text-slate-400">주소 (ADDRESS)</label>
-                      <textarea 
-                        value={formData.address || ""} 
-                        onChange={(e) => setFormData(p => ({ ...p, address: e.target.value }))}
-                        className="min-h-[100px] w-full rounded-2xl border-2 border-slate-300 bg-white p-5 font-bold text-slate-900 outline-none focus:border-blue-500 transition-all resize-none" 
-                        placeholder="상세 주소를 입력하세요."
-                      />
-                    </div>
-                  </div>
-                </section>
-
-                <hr className="border-slate-100" />
-
-                <section className="space-y-6">
-                  <div className="flex items-center gap-2 text-slate-900 font-black"><div className="h-4 w-1 bg-emerald-500 rounded-full" /> 상담 관리 영역</div>
-                  <div className="grid gap-6 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-black text-slate-400">상담 상태</label>
-                      <select value={formData.consult_status || ""} onChange={(e) => setFormData(p => ({ ...p, consult_status: e.target.value }))} className="h-16 w-full rounded-2xl border-2 border-slate-300 bg-white px-6 font-bold text-slate-900 outline-none focus:border-blue-500 transition-all">
-                        <option value="">상태 선택</option>
-                        {consultCodes.map(c => <option key={c.code_value} value={c.code_name}>{c.code_name}</option>)}
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-black text-slate-400 flex items-center gap-1.5"><Clock className="h-3 w-3" /> 상담 일시 (24시간제 / 10분 단위)</label>
-                      <div className="flex gap-2">
-                        {/* 날짜 선택 - YYYY-MM-DD 파싱 및 업데이트 */}
-                        <input 
-                          type="date" 
-                          value={formData.consult_date ? formData.consult_date.split(" ")[0] : ""} 
-                          onChange={(e) => {
-                            const timePart = formData.consult_date?.split(" ")[1] || "09:00:00";
-                            setFormData(p => ({ ...p, consult_date: `${e.target.value} ${timePart}` }));
-                          }} 
-                          className="h-16 flex-[2] rounded-2xl border-2 border-slate-300 bg-white px-4 font-black text-slate-900 outline-none focus:border-blue-500 transition-all" 
-                        />
-                        {/* 시간 선택 */}
-                        <select 
-                          value={formData.consult_date && formData.consult_date.split(" ")[1] ? formData.consult_date.split(" ")[1].split(":")[0] : "09"} 
-                          onChange={(e) => {
-                            const datePart = formData.consult_date?.split(" ")[0] || "";
-                            const minutePart = formData.consult_date?.split(" ")[1]?.split(":")[1] || "00";
-                            setFormData(p => ({ ...p, consult_date: `${datePart} ${e.target.value}:${minutePart}:00` }));
-                          }}
-                          className="h-16 flex-1 rounded-2xl border-2 border-slate-300 bg-white px-2 font-black text-slate-900 outline-none focus:border-blue-500 text-center transition-all"
-                        >
-                          {hoursList.map(h => <option key={h} value={h}>{h}시</option>)}
-                        </select>
-                        {/* 분 선택 */}
-                        <select 
-                          value={formData.consult_date && formData.consult_date.split(" ")[1] ? formData.consult_date.split(" ")[1].split(":")[1] : "00"} 
-                          onChange={(e) => {
-                            const datePart = formData.consult_date?.split(" ")[0] || "";
-                            const hourPart = formData.consult_date?.split(" ")[1]?.split(":")[0] || "09";
-                            setFormData(p => ({ ...p, consult_date: `${datePart} ${hourPart}:${e.target.value}:00` }));
-                          }}
-                          className="h-16 flex-1 rounded-2xl border-2 border-slate-300 bg-white px-2 font-black text-slate-900 outline-none focus:border-blue-500 text-center transition-all"
-                        >
-                          {minutesList.map(m => <option key={m} value={m}>{m}분</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[11px] font-black text-slate-400">상담 메모</label>
-                    <textarea value={formData.consult_memo || ""} onChange={(e) => setFormData(p => ({ ...p, consult_memo: e.target.value }))} className="min-h-[180px] w-full rounded-[30px] border-2 border-slate-300 bg-white p-8 font-bold text-slate-900 outline-none focus:border-blue-500 transition-all" placeholder="상담 내용을 입력하세요." />
-                  </div>
-                </section>
-
-                <section className="rounded-[35px] border-2 border-dashed border-slate-300 bg-slate-50/50 p-8">
-                  <div className="mb-6 flex justify-between items-center">
-                    <h3 className="font-black text-slate-900 flex items-center gap-2"><FileAudio className="h-4 w-4" /> 상담 파일</h3>
-                    <button type="button" onClick={() => recordingInputRef.current?.click()} disabled={isUploading} className="flex items-center gap-2 bg-white px-5 py-3 rounded-xl border-2 border-slate-200 font-black text-sm hover:shadow-md transition-all">
-                      <Upload className="h-4 w-4" /> {isUploading ? "업로드 중..." : "파일 추가"}
-                    </button>
-                  </div>
-                  <div className="grid gap-3">
-                    {recordings.length === 0 ? <div className="py-8 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest">등록된 파일 없음</div> : 
-                     recordings.map(r => (
-                      <div key={r.id} className="flex items-center justify-between bg-white p-4 rounded-2xl border-2 border-slate-100 shadow-sm transition-all hover:shadow-md">
-                        <div className="flex items-center gap-4"><FileAudio className="h-5 w-5 text-blue-500" /><span className="text-sm font-bold truncate max-w-[300px] text-slate-700">{r.file_name}</span></div>
-                        <div className="flex gap-2">
-                          <a href={r.file_url} target="_blank" rel="noreferrer" className="px-4 py-2 border-2 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all flex items-center gap-1 text-slate-600"><ExternalLink className="h-3.5 w-3.5" /> 열기</a>
-                          <button type="button" onClick={() => {setRecordingDeleteTarget(r); setIsRecordingDeleteModalOpen(true);}} className="p-2 border-2 border-rose-100 rounded-xl text-rose-500 hover:bg-rose-500 hover:text-white transition-all"><Trash2 className="h-4 w-4" /></button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                <div className="flex gap-4 pt-6">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="h-16 flex-1 rounded-2xl border-2 border-slate-200 font-black text-slate-400 hover:bg-slate-50 transition-all">닫기</button>
-                  <button type="submit" className="h-16 flex-[2] rounded-2xl bg-slate-900 font-black text-white shadow-xl hover:bg-slate-800 transition-all">변경 내용 저장</button>
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center gap-2 text-[11px] font-black text-slate-800"><Clock className="h-4 w-4 text-blue-500" /> 상담 일시 및 상태</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <select value={formData.consult_status || ""} onChange={(e) => setFormData(p => ({ ...p, consult_status: e.target.value }))} className="h-10 rounded-xl border-2 border-blue-100 bg-blue-50/30 px-3 text-xs font-black text-blue-600 outline-none">
+                    {consultCodes.map(c => <option key={c.code_value} value={c.code_name}>{c.code_name}</option>)}
+                  </select>
+                  <input type="date" value={formData.consult_date ? formData.consult_date.split(" ")[0] : ""} onChange={(e) => {
+                    const time = formData.consult_date?.split(" ")[1] || "09:00:00";
+                    setFormData(p => ({ ...p, consult_date: `${e.target.value} ${time}` }));
+                  }} className="h-10 rounded-xl border-2 border-slate-100 bg-slate-50 px-3 text-[11px] font-bold text-slate-900 outline-none" />
                 </div>
-              </form>
-            </div>
+                <div className="flex gap-2">
+                  <select value={formData.consult_date?.split(" ")[1]?.split(":")[0] || "09"} onChange={(e) => {
+                    const d = formData.consult_date?.split(" ")[0] || "";
+                    const m = formData.consult_date?.split(" ")[1]?.split(":")[1] || "00";
+                    setFormData(p => ({ ...p, consult_date: `${d} ${e.target.value}:${m}:00` }));
+                  }} className="h-9 flex-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-900 text-center outline-none">
+                    {hoursList.map(h => <option key={h} value={h}>{h}시</option>)}
+                  </select>
+                  <select value={formData.consult_date?.split(" ")[1]?.split(":")[1] || "00"} onChange={(e) => {
+                    const d = formData.consult_date?.split(" ")[0] || "";
+                    const h = formData.consult_date?.split(" ")[1]?.split(":")[0] || "09";
+                    setFormData(p => ({ ...p, consult_date: `${d} ${h}:${e.target.value}:00` }));
+                  }} className="h-9 flex-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-900 text-center outline-none">
+                    {minutesList.map(m => <option key={m} value={m}>{m}분</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 ml-1 uppercase">상담 기록</label>
+                <textarea value={formData.consult_memo || ""} onChange={(e) => setFormData(p => ({ ...p, consult_memo: e.target.value }))} className="h-20 w-full rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 text-xs font-bold text-slate-900 focus:border-blue-500 focus:bg-white transition-all resize-none outline-none" placeholder="내용을 기록하세요." />
+              </div>
+
+              <div className="rounded-2xl border-2 border-dashed border-emerald-100 bg-emerald-50/20 p-4 text-slate-900">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-black text-emerald-700 flex items-center gap-1.5"><FileAudio className="h-4 w-4" /> 녹취 파일</span>
+                  <button type="button" onClick={() => recordingInputRef.current?.click()} className="flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black hover:bg-emerald-700 shadow-md transition-all">
+                    <Upload className="h-3.5 w-3.5" /> 파일 추가
+                  </button>
+                </div>
+                <div className="space-y-2 max-h-[80px] overflow-y-auto pr-1">
+                  {recordings.length === 0 ? <div className="text-center py-2 text-[10px] font-bold text-slate-300">첨부 파일 없음</div> : 
+                   recordings.map(r => (
+                    <div key={r.id} className="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-slate-100 shadow-sm transition-all hover:border-emerald-200">
+                      <span className="text-[10px] font-bold text-slate-700 truncate flex-1 mr-2">{r.file_name}</span>
+                      <div className="flex gap-1">
+                        <a href={r.file_url} target="_blank" rel="noreferrer" className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><ExternalLink className="h-3.5 w-3.5" /></a>
+                        <button type="button" onClick={() => {setRecordingDeleteTarget(r); setIsRecordingDeleteModalOpen(true);}} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-1 pb-4">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="h-12 flex-1 rounded-2xl border-2 border-slate-200 font-black text-slate-400 text-xs hover:bg-slate-50 transition-all">닫기</button>
+                <button type="submit" className="h-12 flex-[2] rounded-2xl bg-slate-900 font-black text-white text-xs shadow-xl hover:bg-slate-800 transition-all">변경 내용 저장</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
       {/* Recording Delete Modal */}
       {isRecordingDeleteModalOpen && (
-        <div className="fixed inset-0 z-[12000] flex items-center justify-center bg-slate-950/40 backdrop-blur-md">
-          <div className="w-full max-w-sm rounded-[45px] bg-white p-10 text-center shadow-2xl animate-in zoom-in-95">
-            <div className="mx-auto mb-6 h-20 w-20 flex items-center justify-center rounded-[30px] bg-rose-50 text-rose-500"><FileAudio className="h-10 w-10" /></div>
-            <h3 className="text-2xl font-black text-slate-900">파일 삭제</h3>
-            <p className="mt-3 text-sm font-bold text-slate-400 leading-relaxed">이 상담 녹취 파일을 삭제하시겠습니까?<br/>{recordingDeleteTarget?.file_name}</p>
-            <div className="mt-8 flex flex-col gap-3">
-              <button onClick={confirmDeleteRecording} className="h-14 rounded-2xl bg-rose-600 font-black text-white hover:bg-rose-700 transition-all">삭제 확인</button>
-              <button onClick={() => setIsRecordingDeleteModalOpen(false)} className="h-14 rounded-2xl font-bold text-slate-400 hover:bg-slate-50 transition-all">취소</button>
+        <div className="fixed inset-0 z-[12000] flex items-center justify-center bg-slate-950/50 backdrop-blur-sm p-6 text-slate-900">
+          <div className="w-full max-w-[280px] rounded-[30px] bg-white p-6 text-center shadow-2xl border border-slate-100">
+            <h3 className="text-sm font-black">파일을 삭제할까요?</h3>
+            <div className="mt-6 flex flex-col gap-2">
+              <button onClick={confirmDeleteRecording} className="h-11 rounded-xl bg-rose-600 text-xs font-black text-white hover:bg-rose-700 transition-all">삭제</button>
+              <button onClick={() => {setIsRecordingDeleteModalOpen(false); setRecordingDeleteTarget(null);}} className="h-11 rounded-xl font-bold text-slate-400 text-xs hover:bg-slate-100 transition-all">취소</button>
             </div>
           </div>
         </div>

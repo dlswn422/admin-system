@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
     // 3. DB 포맷에 맞게 매핑
     const customersToInsert = dataRows
-      .filter(row => row[0]) // 업체명(필수값)이 있는 경우만
+      .filter(row => row[0]) // 업체명(row[0])이 있는 경우만 필터링
       .map((row) => ({
         company_name: String(row[0] || "").trim(),
         customer_name: String(row[1] || "").trim(),
@@ -41,10 +41,11 @@ export async function POST(request: Request) {
         address: String(row[4] || "").trim(),
         note: String(row[5] || "").trim(),
         receipt_date: new Date().toISOString().split('T')[0], // 등록일은 현재 날짜
+        consult_status: "대기", // 🌟 엑셀 업로드 시 상담 상태 기본값을 '대기'로 고정
       }));
 
     if (customersToInsert.length === 0) {
-      return NextResponse.json({ error: "등록할 데이터가 없습니다." }, { status: 400 });
+      return NextResponse.json({ error: "등록할 유효한 데이터가 없습니다." }, { status: 400 });
     }
 
     // 4. Supabase 일괄 삽입 (Bulk Insert)

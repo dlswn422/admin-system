@@ -36,7 +36,7 @@ interface Customer {
   note: string;
   receipt_date: string;
   tm_id: string;
-  consult_date: string; // DB: "2026-04-10 15:10:00"
+  consult_date: string;
   consult_status: string;
   consult_memo: string;
   sales_id: string;
@@ -116,6 +116,7 @@ export default function CustomersPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isBulkDeleteMode, setIsBulkDeleteMode] = useState(false);
 
   const [recordings, setRecordings] = useState<RecordingItem[]>([]);
   const [isRecordingsLoading, setIsRecordingsLoading] = useState(false);
@@ -318,6 +319,15 @@ export default function CustomersPage() {
     }
   };
 
+  // 일괄 삭제 버튼 클릭 시 실행
+  const handleBulkDelete = () => {
+    if (selectedIds.length === 0) {
+      return showToast("삭제할 고객을 먼저 선택해주세요.", "error");
+    }
+    setIsBulkDeleteMode(true);
+    setIsDeleteModalOpen(true);
+  };
+
   const excelEscape = (value: string) =>
     String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -440,8 +450,10 @@ export default function CustomersPage() {
     }
   };
 
+  // 개별 삭제 버튼 클릭 시 실행
   const openDeleteModal = (customer: Customer) => {
     setDeleteTarget(customer);
+    setIsBulkDeleteMode(false);
     setIsDeleteModalOpen(true);
   };
 
@@ -525,41 +537,51 @@ export default function CustomersPage() {
     }
   };
 
+  // 삭제 로직 최종 해결 버전
   const confirmDelete = async () => {
-    if (!deleteTarget) return;
-
     try {
-      const res = await fetch(`/api/customers/${encodeURIComponent(deleteTarget.id)}`, {
-        method: "DELETE",
-        headers: { Accept: "application/json" },
-      });
+      let res;
+      if (isBulkDeleteMode) {
+        // 일괄 삭제: /api/customers 주소로 배열 전달
+        res = await fetch(`/api/customers`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: selectedIds }),
+        });
+      } else {
+        // 개별 삭제: /api/customers/[id] 주소로 호출
+        if (!deleteTarget) return;
+        res = await fetch(`/api/customers/${encodeURIComponent(deleteTarget.id)}`, {
+          method: "DELETE",
+        });
+      }
 
-      let errorMessage = "삭제 실패";
-      const contentType = res.headers.get("content-type") || "";
+      // 응답 데이터 읽기 (JSON이 비어있을 경우를 대비해 catch 처리)
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        if (contentType.includes("application/json")) {
-          const data = await res.json().catch(() => null);
-          errorMessage = data?.message || data?.error || errorMessage;
-        } else {
-          const text = await res.text().catch(() => "");
-          if (text) errorMessage = text;
-        }
-        throw new Error(errorMessage);
+        throw new Error(data.error || data.message || "삭제 처리 중 오류가 발생했습니다.");
+      }
+
+      showToast(isBulkDeleteMode ? `${selectedIds.length}건 삭제 완료` : "삭제 완료");
+      
+      if (isBulkDeleteMode) {
+        setSelectedIds([]);
+      } else if (deleteTarget) {
+        setSelectedIds(prev => prev.filter(id => id !== deleteTarget.id));
       }
 
       setIsDeleteModalOpen(false);
       setDeleteTarget(null);
-      showToast("고객이 삭제되었습니다.");
+      setIsBulkDeleteMode(false);
       await fetchData();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "삭제 실패";
-      showToast(message, "error");
+      showToast(error instanceof Error ? error.message : "삭제 실패", "error");
     }
   };
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-8 pb-20">
+    <div className="mx-auto max-w-[1600px] space-y-8 pb-20 px-4 md:px-0">
       <input ref={excelInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelUpload} />
       <input ref={recordingInputRef} type="file" accept="*/*" className="hidden" onChange={handleRecordingUpload} />
 
@@ -727,15 +749,25 @@ export default function CustomersPage() {
         </div>
       </section>
 
-      {/* Table */}
+      {/* Table Section */}
       <section className="fade-up overflow-hidden rounded-[30px] border border-slate-200/80 bg-white/95 shadow-[0_16px_36px_rgba(15,23,42,0.06)]">
         <div className="border-b border-slate-100 px-6 py-5">
-          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-[1.2rem] font-bold tracking-[-0.03em] text-slate-900">고객 레지스트리</h2>
               <p className="mt-1 text-sm text-slate-500">고객 기본정보와 상담/영업 상태를 빠르게 조회하고 수정할 수 있습니다.</p>
             </div>
             <div className="flex items-center gap-3">
+              {/* 일괄 삭제 버튼 */}
+              {selectedIds.length > 0 && (
+                <button
+                  onClick={handleBulkDelete}
+                  className="flex h-10 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 text-xs font-black text-rose-600 transition-all hover:bg-rose-600 hover:text-white"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  선택 {selectedIds.length}건 일괄 삭제
+                </button>
+              )}
               <select value={itemsPerPage} onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 outline-none">
                 <option value={10}>10개씩</option><option value={50}>50개씩</option><option value={100}>100개씩</option><option value={500}>500개씩</option>
               </select>
@@ -743,49 +775,52 @@ export default function CustomersPage() {
           </div>
         </div>
 
-        <div className="px-4 py-4 md:px-6 md:py-5 overflow-x-auto">
-          <div className="min-w-[1660px] space-y-3">
+        <div className="px-4 py-4 md:px-6 md:py-5 overflow-hidden">
+          <div className="w-full space-y-3">
             {isLoading ? (
               [1, 2, 3, 4].map((i) => <div key={i} className="h-24 rounded-[24px] border border-slate-100 bg-slate-50/80 animate-pulse" />)
             ) : (
               <>
-                <div className="grid items-center gap-3 rounded-2xl bg-slate-50 px-5 py-3 text-[11px] font-bold tracking-[0.12em] text-slate-400 md:grid-cols-[52px_120px_minmax(240px,1.25fr)_120px_160px_minmax(240px,1fr)_110px_120px_140px_120px_120px_72px]">
+                {/* Table Header Grid */}
+                <div className="grid items-center gap-3 rounded-2xl bg-slate-50 px-5 py-3 text-[10px] font-bold tracking-[0.1em] text-slate-400 grid-cols-[40px_90px_minmax(120px,1.5fr)_90px_110px_minmax(120px,2fr)_80px_90px_90px_90px_90px_40px]">
                   <div className="flex justify-center">
-                    <input type="checkbox" className="h-4.5 w-4.5 rounded-lg border-slate-300 accent-blue-600 cursor-pointer" checked={paginatedData.length > 0 && paginatedData.every(c => selectedIds.includes(c.id))} onChange={toggleSelectAll} />
+                    <input type="checkbox" className="h-4 w-4 rounded border-slate-300 accent-blue-600 cursor-pointer" checked={paginatedData.length > 0 && paginatedData.every(c => selectedIds.includes(c.id))} onChange={toggleSelectAll} />
                   </div>
                   <span className="text-center">상담일자</span><span>업체 정보</span><span className="text-center">대표자명</span><span className="text-center">핸드폰</span><span>주소</span><span className="text-center">접수일</span><span className="text-center">담당 TM</span><span className="text-center">상담상태</span><span className="text-center">영업담당</span><span className="text-right">영업수당</span><span className="text-center">삭제</span>
                 </div>
+
+                {/* Table Rows */}
                 {paginatedData.map((c) => {
                   const hasDate = c.consult_date && c.consult_date !== "null";
                   const cleanDateStr = hasDate ? c.consult_date.replace("T", " ") : "";
                   const datePart = hasDate ? cleanDateStr.split(" ")[0].replace(/-/g, ".") : "-";
                   const timePart = hasDate ? cleanDateStr.split(" ")[1]?.slice(0, 5) : "";
                   return (
-                    <div key={c.id} className="group rounded-[24px] border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 px-5 py-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:border-blue-200">
-                      <div className="grid items-center gap-3 md:grid-cols-[52px_120px_minmax(240px,1.25fr)_120px_160px_minmax(240px,1fr)_110px_120px_140px_120px_120px_72px]">
+                    <div key={c.id} className="group rounded-[24px] border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 px-5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:border-blue-200">
+                      <div className="grid items-center gap-3 grid-cols-[40px_90px_minmax(120px,1.5fr)_90px_110px_minmax(120px,2fr)_80px_90px_90px_90px_90px_40px]">
                         <div className="flex justify-center">
-                          <input type="checkbox" className="h-4.5 w-4.5 rounded-lg border-slate-300 accent-blue-600 cursor-pointer" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} />
+                          <input type="checkbox" className="h-4 w-4 rounded border-slate-300 accent-blue-600 cursor-pointer" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} />
                         </div>
                         <button type="button" onClick={() => openModal(c)} className="text-center flex flex-col">
-                          <span className="text-sm font-semibold text-slate-700">{datePart}</span>
-                          {timePart && <span className="text-[11px] font-black text-blue-500 mt-0.5">{timePart}</span>}
+                          <span className="text-xs font-semibold text-slate-700">{datePart}</span>
+                          {timePart && <span className="text-[10px] font-black text-blue-500 mt-0.5">{timePart}</span>}
                         </button>
-                        <button type="button" onClick={() => openModal(c)} className="text-left">
-                          <div className="truncate text-base font-black tracking-[-0.03em] text-slate-900">{c.company_name || "-"}</div>
-                          <div className="mt-1 truncate text-sm text-slate-500">{c.note || c.landline_phone || "-"}</div>
+                        <button type="button" onClick={() => openModal(c)} className="text-left overflow-hidden">
+                          <div className="truncate text-sm font-black tracking-[-0.03em] text-slate-900">{c.company_name || "-"}</div>
+                          <div className="mt-0.5 truncate text-[11px] text-slate-500">{c.note || c.landline_phone || "-"}</div>
                         </button>
-                        <button type="button" onClick={() => openModal(c)} className="text-center text-sm font-semibold text-slate-700">{c.customer_name || "-"}</button>
-                        <button type="button" onClick={() => openModal(c)} className="text-center text-sm font-semibold text-slate-700">{c.mobile_phone || "-"}</button>
-                        <button type="button" onClick={() => openModal(c)} className="truncate text-left text-sm font-semibold text-slate-700">{c.address || "-"}</button>
-                        <button type="button" onClick={() => openModal(c)} className="text-center text-sm font-semibold text-slate-700">{formatDate(c.receipt_date)}</button>
-                        <button type="button" onClick={() => openModal(c)} className="text-center text-sm font-semibold text-slate-700">{getUserNameById(c.tm_id)}</button>
+                        <button type="button" onClick={() => openModal(c)} className="text-center text-xs font-semibold text-slate-700 truncate">{c.customer_name || "-"}</button>
+                        <button type="button" onClick={() => openModal(c)} className="text-center text-xs font-semibold text-slate-700 truncate">{c.mobile_phone || "-"}</button>
+                        <button type="button" onClick={() => openModal(c)} className="truncate text-left text-xs font-semibold text-slate-700">{c.address || "-"}</button>
+                        <button type="button" onClick={() => openModal(c)} className="text-center text-xs font-semibold text-slate-700">{formatDate(c.receipt_date)}</button>
+                        <button type="button" onClick={() => openModal(c)} className="text-center text-xs font-semibold text-slate-700 truncate">{getUserNameById(c.tm_id)}</button>
                         <button type="button" onClick={() => openModal(c)} className="flex justify-center">
-                          <span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-bold ${getStatusTone(c.consult_status)}`}>{c.consult_status || "미지정"}</span>
+                          <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-bold ${getStatusTone(c.consult_status)}`}>{c.consult_status || "미지정"}</span>
                         </button>
-                        <button type="button" onClick={() => openModal(c)} className="text-center text-sm font-semibold text-slate-700">{getUserNameById(c.sales_id)}</button>
-                        <button type="button" onClick={() => openModal(c)} className="text-right text-sm font-black text-slate-900">{formatCommission(c.sales_commission)}</button>
+                        <button type="button" onClick={() => openModal(c)} className="text-center text-xs font-semibold text-slate-700 truncate">{getUserNameById(c.sales_id)}</button>
+                        <button type="button" onClick={() => openModal(c)} className="text-right text-xs font-black text-slate-900">{formatCommission(c.sales_commission)}</button>
                         <div className="flex justify-center">
-                          <button type="button" onClick={() => openDeleteModal(c)} className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all"><Trash2 className="h-4.5 w-4.5" /></button>
+                          <button type="button" onClick={() => openDeleteModal(c)} className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-rose-100 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all"><Trash2 className="h-3.5 w-3.5" /></button>
                         </div>
                       </div>
                     </div>
@@ -795,6 +830,7 @@ export default function CustomersPage() {
             )}
           </div>
 
+          {/* Pagination */}
           <div className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-5 md:flex-row md:items-center md:justify-between">
             <div className="text-sm font-semibold text-slate-400">총 {customers.length}건 중 {paginatedData.length}건 표시</div>
             <div className="flex items-center justify-end gap-2">
@@ -808,7 +844,7 @@ export default function CustomersPage() {
         </div>
       </section>
 
-      {/* Modal */}
+      {/* Main Form Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/45 p-6 backdrop-blur-xl animate-in fade-in duration-300">
           <div className="relative max-h-[95vh] w-full max-w-6xl overflow-hidden rounded-[34px] border border-white/10 bg-white shadow-2xl flex flex-col text-slate-900">
@@ -842,15 +878,13 @@ export default function CustomersPage() {
                       <input value={formData.mobile_phone || ""} onChange={(e) => setFormData({ ...formData, mobile_phone: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" />
                     </label>
                     
-                    {/* [수정] 주소: 비고 위가 아니라 섹션 하단으로 이동 및 크기 대폭 확대 */}
-                    <div className="hidden xl:block" /> {/* 그리드 정렬용 더미 */}
+                    <div className="hidden xl:block" />
 
                     <label className="space-y-2 md:col-span-2 xl:col-span-3">
                       <span className="text-sm font-bold text-slate-700">비고</span>
                       <textarea value={formData.note || ""} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="min-h-[110px] w-full rounded-[18px] border border-slate-200 bg-white px-4 py-4 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 transition-all resize-none shadow-sm" />
                     </label>
 
-                    {/* [수정] 주소 입력창: 섹션 가장 아래에 단독 배치 및 크기 확대 */}
                     <label className="space-y-2 md:col-span-2 xl:col-span-3 pt-2">
                       <span className="text-sm font-bold text-slate-700 flex items-center gap-1.5">상세 주소 (Address)</span>
                       <textarea 
@@ -959,13 +993,22 @@ export default function CustomersPage() {
         </div>
       )}
 
-      {/* Delete Confirmation */}
+      {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-950/45 p-6 backdrop-blur-xl animate-in fade-in duration-300">
           <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-white p-10 text-center shadow-[0_40px_90px_rgba(15,23,42,0.25)]">
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-[26px] bg-rose-50 text-rose-500 shadow-inner"><AlertTriangle className="h-9 w-9" /></div>
-            <h3 className="text-[1.8rem] font-black tracking-[-0.05em] text-slate-900">고객 삭제</h3>
-            <p className="mt-3 text-sm text-slate-500 leading-relaxed"><span className="font-bold text-slate-800">{deleteTarget?.company_name}</span> 고객 정보를 삭제하시겠습니까? 삭제 후 복구가 불가능합니다.</p>
+            <h3 className="text-[1.8rem] font-black tracking-[-0.05em] text-slate-900">
+              {isBulkDeleteMode ? "일괄 삭제" : "고객 삭제"}
+            </h3>
+            <p className="mt-3 text-sm text-slate-500 leading-relaxed">
+              {isBulkDeleteMode ? (
+                <>선택한 <span className="font-bold text-slate-800">{selectedIds.length}건</span>의 고객 정보를 모두 삭제하시겠습니까?</>
+              ) : (
+                <><span className="font-bold text-slate-800">{deleteTarget?.company_name}</span> 고객 정보를 삭제하시겠습니까?</>
+              )}
+              <br />삭제 후 복구가 불가능합니다.
+            </p>
             <div className="mt-8 flex flex-col gap-3">
               <button type="button" onClick={confirmDelete} className="w-full rounded-2xl bg-rose-600 py-4 text-sm font-black text-white hover:bg-rose-700 transition-all">삭제</button>
               <button type="button" onClick={() => setIsDeleteModalOpen(false)} className="w-full rounded-2xl border border-slate-200 bg-white py-4 text-sm font-bold text-slate-500 hover:bg-slate-50 transition-all">취소</button>

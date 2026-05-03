@@ -17,7 +17,6 @@ export default function LoginPage() {
     setError("");
 
     try {
-      // 1. 로그인 API 호출
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -27,32 +26,26 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok) {
-        // 2. 로컬 스토리지에 유저 정보 저장 (사이드바 등에서 사용)
         const userData = {
           name: data.user.name,
           role: data.user.role_name || "시스템 관리자",
           role_id: data.user.role_id,
-          role_name: data.user.role_name, // ✅ 그대로 사용
+          role_name: data.user.role_name,
           id: data.user.id,
         };
         localStorage.setItem("user", JSON.stringify(userData));
 
-        // 3. [핵심 수정] 해당 유저가 접근 가능한 메뉴 리스트를 즉시 조회
         try {
-          // 작성하신 api/menu/route.ts 경로가 /api/menus 라고 가정합니다.
           const menuRes = await fetch(`/api/menus?role_id=${data.user.role_id}`);
           const menuData = await menuRes.json();
 
           if (Array.isArray(menuData) && menuData.length > 0) {
-            // 4. 권한이 있는 첫 번째 메뉴(sort_order가 가장 낮은 메뉴)의 path로 이동
             router.push(menuData[0].path);
           } else {
-            // 권한은 있으나 매핑된 메뉴가 하나도 없는 경우 기본 대시보드로 이동
             router.push("/dashboard");
           }
         } catch (menuError) {
           console.error("메뉴 조회 중 오류 발생:", menuError);
-          // 메뉴 조회 실패 시에도 로그인은 성공했으므로 일단 대시보드로 보냄
           router.push("/dashboard");
         }
       } else {
@@ -67,7 +60,6 @@ export default function LoginPage() {
 
   return (
     <div className="login-wrapper">
-      {/* 애니메이션 메쉬 그래디언트 배경 */}
       <div className="bg-layer">
         <div className="gradient-orb orb-1" />
         <div className="gradient-orb orb-2" />
@@ -76,10 +68,7 @@ export default function LoginPage() {
         <div className="noise-overlay" />
       </div>
 
-      {/* 메인 콘텐츠 */}
       <div className="login-content">
-        
-        {/* 로고 영역 */}
         <div className="logo-section">
           <div className="logo-mark">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -95,7 +84,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* 글래스 카드 */}
         <div className="glass-card">
           <div className="card-glow" />
           
@@ -106,7 +94,6 @@ export default function LoginPage() {
             </div>
 
             <form onSubmit={handleLogin} className="login-form">
-              {/* 이름 필드 */}
               <div className="field-group">
                 <label className="field-label">이름</label>
                 <div className="input-wrapper">
@@ -125,7 +112,6 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* 비밀번호 필드 */}
               <div className="field-group">
                 <label className="field-label">비밀번호</label>
                 <div className="input-wrapper">
@@ -163,7 +149,6 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* 에러 메시지 */}
               {error && (
                 <div className="error-box">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -175,7 +160,6 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* 로그인 버튼 */}
               <button
                 type="submit"
                 disabled={isLoading}
@@ -197,14 +181,12 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* 하단 푸터 */}
         <p className="login-footer">
           © 2026 Admin System · 기업 운영 관리 플랫폼
         </p>
       </div>
 
       <style jsx>{`
-        /* 기존 스타일 동일 (생략하지 않음) */
         .login-wrapper {
           --accent: #3B82F6;
           --accent-light: #60A5FA;
@@ -241,10 +223,10 @@ export default function LoginPage() {
         @keyframes float-2 { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(40px, -50px) scale(1.06); } 66% { transform: translate(-30px, 20px) scale(0.94); } }
         @keyframes float-3 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(15px, -15px) scale(1.2); } }
 
-        .login-content { position: relative; z-index: 10; width: 100%; max-width: 420px; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 28px; animation: content-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0.1s; opacity: 0; }
+        .login-content { position: relative; z-index: 10; width: 100%; max-width: 420px; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 28px; animation: content-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.1s; }
         @keyframes content-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
-        .logo-section { display: flex; flex-direction: column; align-items: center; gap: 16px; animation: content-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0.2s; opacity: 0; }
+        .logo-section { display: flex; flex-direction: column; align-items: center; gap: 16px; animation: content-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.2s; }
         .logo-mark { display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 15px; background: linear-gradient(145deg, #3B82F6 0%, #7C3AED 100%); color: white; box-shadow: 0 12px 40px -8px rgba(59, 130, 246, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset; animation: logo-pulse 4s ease-in-out infinite alternate; }
         @keyframes logo-pulse { from { box-shadow: 0 12px 40px -8px rgba(59, 130, 246, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset; } to { box-shadow: 0 16px 56px -8px rgba(59, 130, 246, 0.55), 0 0 0 1px rgba(255,255,255,0.15) inset; } }
         .logo-text { display: flex; align-items: center; gap: 10px; }
@@ -252,7 +234,7 @@ export default function LoginPage() {
         .logo-divider { width: 1px; height: 14px; background: var(--text-muted); }
         .logo-subtitle { font-size: 14px; font-weight: 500; color: var(--text-secondary); }
 
-        .glass-card { position: relative; width: 100%; border-radius: 24px; overflow: hidden; animation: content-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0.35s; opacity: 0; }
+        .glass-card { position: relative; width: 100%; border-radius: 24px; overflow: hidden; animation: content-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.35s; }
         .card-glow { position: absolute; top: -1px; left: 20%; right: 20%; height: 1px; background: linear-gradient(90deg, transparent 0%, var(--accent-light) 50%, transparent 100%); opacity: 0.6; z-index: 2; }
         .card-inner { position: relative; z-index: 1; padding: 40px 36px; background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(48px) saturate(1.4); -webkit-backdrop-filter: blur(48px) saturate(1.4); border: 1px solid var(--border); border-radius: 24px; box-shadow: 0 32px 80px -12px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255,255,255,0.05) inset; }
         .card-header { margin-bottom: 32px; }
@@ -287,7 +269,7 @@ export default function LoginPage() {
         .spinner { width: 20px; height: 20px; border: 2.5px solid rgba(255, 255, 255, 0.2); border-top-color: white; border-radius: 50%; animation: spin 0.65s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .login-footer { font-size: 12px; color: var(--text-muted); opacity: 0.5; margin: 0; animation: content-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0.5s; }
+        .login-footer { font-size: 12px; color: var(--text-muted); opacity: 0.5; margin: 0; animation: content-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.5s; }
 
         @media (max-width: 480px) {
           .card-inner { padding: 32px 24px; }

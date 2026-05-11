@@ -183,7 +183,13 @@ export default function SalesManagementPage() {
   const openModal = async (customer: Customer) => {
     setSelectedCustomer(customer);
 
-    const formattedDate = customer.sales_date ? customer.sales_date.split("T")[0] : "";
+    // 날짜 포맷팅 (YYYY-MM-DD)
+    let formattedDate = customer.sales_date ? customer.sales_date.split("T")[0] : "";
+    
+    // 만약 영업일자가 비어있다면 오늘 날짜로 세팅
+    if (!formattedDate) {
+      formattedDate = new Date().toISOString().split("T")[0];
+    }
 
     setFormData({
       ...customer,
@@ -207,20 +213,6 @@ export default function SalesManagementPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCustomer) return;
-
-    // --- 유효성 검사 ---
-    // if (!formData.sales_status || formData.sales_status === "") {
-    //   return showToast("영업 진행 상태를 선택해주세요.", "error");
-    // }
-
-    // if (!formData.sales_date || formData.sales_date === "") {
-    //   return showToast("영업 실행 일자를 선택해주세요.", "error");
-    // }
-
-    // // 관리자만 정산 수당 필수 검증
-    // if (isAdmin && (formData.sales_commission === undefined || formData.sales_commission === null)) {
-    //   return showToast("정산 수당을 입력해주세요.", "error");
-    // }
 
     // 관리자가 아닌 경우, 기존 정산 수당 값 유지
     const submissionData = {

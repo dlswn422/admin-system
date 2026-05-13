@@ -84,7 +84,7 @@ type FilterState = {
 };
 
 const INITIAL_FILTERS: FilterState = {
-  date_type: "접수일",
+  date_type: "영업일",
   date_from: "",
   date_to: "",
   search: "",
@@ -443,12 +443,33 @@ export default function CustomersPage() {
 
   const openModal = async (customer: Customer | null = null) => {
     setSelectedCustomer(customer);
+
     if (customer) {
-      const cleanDate = customer.consult_date ? customer.consult_date.replace("T", " ") : "";
-      setFormData({ ...customer, consult_date: cleanDate });
+      const cleanConsultDate = customer.consult_date
+        ? String(customer.consult_date).replace("T", " ")
+        : "";
+
+      const cleanReceiptDate = customer.receipt_date
+        ? String(customer.receipt_date).split("T")[0]
+        : "";
+
+      const cleanSalesDate = customer.sales_date
+        ? String(customer.sales_date).split("T")[0]
+        : "";
+
+      setFormData({
+        ...customer,
+        receipt_date: cleanReceiptDate,
+        consult_date: cleanConsultDate,
+        sales_date: cleanSalesDate,
+      });
     } else {
-      setFormData({ receipt_date: new Date().toISOString().split("T")[0], sales_commission: 0 });
+      setFormData({
+        receipt_date: new Date().toISOString().split("T")[0],
+        sales_commission: 0,
+      });
     }
+
     setRecordings([]);
     setIsModalOpen(true);
 
@@ -523,10 +544,21 @@ export default function CustomersPage() {
       return;
     }
 
+    const normalizeDateValue = (value?: string | null) => {
+      const v = String(value || "").trim();
+      return v === "" ? null : v;
+    };
+
     const url = selectedCustomer ? `/api/customers/${selectedCustomer.id}` : "/api/customers";
+
     const payload = {
       ...formData,
       company_name: companyName,
+
+      receipt_date: normalizeDateValue(formData.receipt_date),
+      consult_date: normalizeDateValue(formData.consult_date),
+      sales_date: normalizeDateValue(formData.sales_date),
+
       sales_commission: Number(formData.sales_commission || 0),
     };
 
@@ -540,6 +572,9 @@ export default function CustomersPage() {
       setIsModalOpen(false);
       showToast("저장되었습니다.");
       fetchData();
+    } else {
+      const data = await res.json().catch(() => null);
+      showToast(data?.error || "저장 실패", "error");
     }
   };
 
@@ -693,7 +728,7 @@ export default function CustomersPage() {
           <div className="relative self-start">
             <Filter className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" />
             <select value={filters.date_type} onChange={(e) => setFilters({ ...filters, date_type: e.target.value })} className="h-14 w-full appearance-none rounded-[20px] border border-slate-200/80 bg-slate-50/80 pl-12 pr-12 text-sm font-semibold text-slate-900 outline-none">
-              <option>접수일</option><option>상담일</option>
+              <option>영업일</option><option>상담일</option>
             </select>
           </div>
           <div className="grid items-start gap-3 md:grid-cols-[140px_auto_140px_minmax(0,1fr)]">

@@ -9,12 +9,18 @@ export async function POST(request: Request) {
   try {
     const { name, password } = await request.json();
 
-    // 1. 유저 정보 조회 (is_active 포함)
+    if (!name || !password) {
+      return NextResponse.json(
+        { error: "이름과 비밀번호를 입력해주세요." },
+        { status: 400 }
+      );
+    }
+
     const { data: user, error } = await supabase
       .from("users")
       .select(`
-        id, 
-        name, 
+        id,
+        name,
         password_hash,
         role_id,
         is_active,
@@ -32,7 +38,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. 계정 활성화 상태 체크
     if (user.is_active === false) {
       return NextResponse.json(
         { error: "비활성화된 계정입니다. 관리자에게 문의하세요." },
@@ -40,7 +45,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. 비밀번호 체크
     if (user.password_hash !== password) {
       return NextResponse.json(
         { error: "비밀번호가 일치하지 않습니다." },
@@ -48,21 +52,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. 로그인 성공 응답
     return NextResponse.json({
       success: true,
-      user: { 
-        id: user.id, 
+      user: {
+        id: user.id,
         name: user.name,
         role_id: user.role_id,
-        role_name: Array.isArray(user.roles) 
-          ? user.roles[0]?.name 
-          : (user.roles as any)?.name || "권한 미정"
-      }
+        role_name: Array.isArray(user.roles)
+          ? user.roles[0]?.name || "권한 미정"
+          : (user.roles as any)?.name || "권한 미정",
+      },
     });
-
   } catch (err) {
     console.error("Server Error:", err);
-    return NextResponse.json({ error: "시스템 통신 중 오류가 발생했습니다." }, { status: 500 });
+
+    return NextResponse.json(
+      { error: "시스템 통신 중 오류가 발생했습니다." },
+      { status: 500 }
+    );
   }
 }

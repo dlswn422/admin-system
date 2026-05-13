@@ -704,7 +704,7 @@ export default function CustomersPage() {
           { label: "전체 고객", value: totalCount.toString().padStart(2, "0"), icon: Users, tone: "bg-blue-500/10 text-blue-600 ring-blue-500/15" },
           { label: "TM 배정 고객", value: assignedTmCount.toString().padStart(2, "0"), icon: Mic, tone: "bg-emerald-500/10 text-emerald-600 ring-emerald-500/15" },
           { label: "영업 배정 고객", value: assignedSalesCount.toString().padStart(2, "0"), icon: BriefcaseBusiness, tone: "bg-violet-500/10 text-violet-600 ring-violet-500/15" },
-          { label: "누적 정산금액", value: `₩${totalCommission.toLocaleString()}`, icon: Wallet, tone: "bg-slate-900/10 text-slate-700 ring-slate-300/40" },
+          { label: "누적 매출", value: `₩${totalCommission.toLocaleString()}`, icon: Wallet, tone: "bg-slate-900/10 text-slate-700 ring-slate-300/40" },
         ].map((stat, index) => {
           const Icon = stat.icon;
           return (
@@ -821,7 +821,7 @@ export default function CustomersPage() {
                   <div className="flex justify-center">
                     <input type="checkbox" className="h-4 w-4 rounded border-slate-300 accent-blue-600 cursor-pointer" checked={paginatedData.length > 0 && paginatedData.every(c => selectedIds.includes(c.id))} onChange={toggleSelectAll} />
                   </div>
-                  <span className="text-center">상담일자</span><span>업체 정보</span><span className="text-center">대표자명</span><span className="text-center">핸드폰</span><span>주소</span><span className="text-center">접수일</span><span className="text-center">담당 TM</span><span className="text-center">상담상태</span><span className="text-center">영업담당</span><span className="text-right">영업수당</span><span className="text-center">삭제</span>
+                  <span className="text-center">상담일자</span><span>업체 정보</span><span className="text-center">대표자명</span><span className="text-center">핸드폰</span><span>주소</span><span className="text-center">접수일</span><span className="text-center">담당 TM</span><span className="text-center">상담상태</span><span className="text-center">영업담당</span><span className="text-right">매출</span><span className="text-center">삭제</span>
                 </div>
 
                 {paginatedData.map((c) => {

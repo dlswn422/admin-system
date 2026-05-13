@@ -322,7 +322,6 @@ export default function SalesManagementPage() {
         {[
           { label: "담당 고객", value: stats.total, icon: Users, color: "text-blue-600 bg-blue-50" },
           { label: "계약 성공", value: stats.completed, icon: UserCheck, color: "text-emerald-600 bg-emerald-50" },
-          { label: "누적 수당", value: `₩${stats.totalCommission.toLocaleString()}`, icon: Wallet, color: "text-violet-600 bg-violet-50" },
         ].map((stat, i) => (
           <div key={i} className="flex items-center justify-between rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm">
             <div>
@@ -709,7 +708,7 @@ export default function SalesManagementPage() {
 
                       <div className="space-y-2">
                         <label className="text-[11px] font-black text-slate-400 uppercase ml-1">
-                          정산 영업 수당 (₩)
+                          매출 (₩)
                           {isAdmin && <span className="text-rose-500"> *</span>}
                           {!isAdmin && (
                             <span className="ml-2 text-[10px] font-black text-slate-400">

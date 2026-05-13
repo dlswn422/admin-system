@@ -17,11 +17,15 @@ export async function GET(request: Request) {
         .from("menus")
         .select("*")
         .order("sort_order", { ascending: true });
+
       if (allMenuError) throw allMenuError;
-      return NextResponse.json(allMenus);
+
+      return NextResponse.json(allMenus || []);
     }
 
-    if (!roleId || roleId === "undefined") return NextResponse.json([]);
+    if (!roleId || roleId === "undefined" || roleId === "null") {
+      return NextResponse.json([]);
+    }
 
     const { data: accessData, error: accessError } = await supabase
       .from("role_menu_access")
@@ -29,9 +33,19 @@ export async function GET(request: Request) {
       .eq("role_id", roleId);
 
     if (accessError) throw accessError;
-    if (!accessData || accessData.length === 0) return NextResponse.json([]);
 
-    const menuIds = accessData.map((item: any) => item.menu_id);
+    if (!accessData || accessData.length === 0) {
+      return NextResponse.json([]);
+    }
+
+    const menuIds = accessData
+      .map((item: any) => item.menu_id)
+      .filter((id: any) => id !== null && id !== undefined);
+
+    if (menuIds.length === 0) {
+      return NextResponse.json([]);
+    }
+
     const { data: menus, error: menuError } = await supabase
       .from("menus")
       .select("*")
@@ -39,32 +53,44 @@ export async function GET(request: Request) {
       .order("sort_order", { ascending: true });
 
     if (menuError) throw menuError;
-    return NextResponse.json(menus);
+
+    return NextResponse.json(menus || []);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("GET /api/menus error:", error);
+
+    return NextResponse.json(
+      { error: error?.message || "메뉴 조회 중 오류가 발생했습니다." },
+      { status: 500 }
+    );
   }
 }
 
-// [POST] 신규 메뉴 등록
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    // 프론트엔드 formData 필드명과 일치시킴
     const { title, path, icon, sort_order } = body;
 
     const { data, error } = await supabase
       .from("menus")
-      .insert([{ 
-        title, 
-        path, 
-        icon, 
-        sort_order: Number(sort_order) 
-      }])
+      .insert([
+        {
+          title,
+          path,
+          icon,
+          sort_order: Number(sort_order),
+        },
+      ])
       .select();
 
     if (error) throw error;
-    return NextResponse.json(data[0]);
+
+    return NextResponse.json(data?.[0] || null);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("POST /api/menus error:", error);
+
+    return NextResponse.json(
+      { error: error?.message || "메뉴 등록 중 오류가 발생했습니다." },
+      { status: 500 }
+    );
   }
 }

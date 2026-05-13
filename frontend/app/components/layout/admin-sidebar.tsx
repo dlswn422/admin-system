@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LogOut, Sparkles, ShieldCheck } from "lucide-react";
+import { LogOut, ShieldCheck } from "lucide-react";
 
 interface MenuItem {
   id: string;
@@ -14,8 +14,9 @@ interface MenuItem {
 
 interface UserInfo {
   name: string;
-  role: string;
-  role_id?: string;
+  role?: string;
+  role_id?: string | number;
+  role_name?: string;
 }
 
 export default function AdminSidebar({
@@ -29,41 +30,83 @@ export default function AdminSidebar({
   const [user, setUser] = useState<UserInfo | null>(null);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    let currentUser: UserInfo | null = null;
-
-    if (storedUser) {
-      try {
-        currentUser = JSON.parse(storedUser);
-        setUser(currentUser);
-      } catch (e) {
-        console.error("유저 정보 파싱 에러");
-      }
-    }
+    let isMounted = true;
 
     const fetchMenus = async () => {
       setIsLoading(true);
-      try {
-        const roleId = currentUser?.role_id;
-        const response = await fetch(
-          `/api/menus${roleId ? `?role_id=${roleId}` : ""}`
-        );
 
-        if (!response.ok) throw new Error("메뉴 응답 오류");
+      try {
+        const storedUser = localStorage.getItem("user");
+
+        if (!storedUser) {
+          if (!isMounted) return;
+          setUser(null);
+          setMenuItems([]);
+          return;
+        }
+
+        let currentUser: UserInfo;
+
+        try {
+          currentUser = JSON.parse(storedUser);
+        } catch (e) {
+          console.error("유저 정보 파싱 에러:", e);
+          localStorage.removeItem("user");
+
+          if (!isMounted) return;
+          setUser(null);
+          setMenuItems([]);
+          return;
+        }
+
+        if (!isMounted) return;
+        setUser(currentUser);
+
+        const roleId = currentUser?.role_id;
+
+        if (!roleId || roleId === "undefined" || roleId === "null") {
+          console.error("role_id가 없습니다.");
+          setMenuItems([]);
+          return;
+        }
+
+        const response = await fetch(`/api/menus?role_id=${roleId}`, {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error("메뉴 응답 오류");
+        }
 
         const data = await response.json();
+
+        if (!isMounted) return;
+
         if (Array.isArray(data)) {
           setMenuItems(data);
+        } else {
+          setMenuItems([]);
         }
       } catch (error) {
         console.error("사이드바 메뉴 로드 실패:", error);
+
+        if (!isMounted) return;
+        setMenuItems([]);
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchMenus();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
+
+  const displayRole = user?.role_name || user?.role || "권한 확인 중";
 
   return (
     <aside className="dashboard-sidebar-surface relative flex h-screen w-full flex-col overflow-hidden text-slate-100">
@@ -74,9 +117,6 @@ export default function AdminSidebar({
         <div className="absolute bottom-0 left-1/4 h-40 w-40 rounded-full bg-cyan-400/10 blur-3xl" />
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-400/35 to-transparent" />
       </div>
-
-
-
 
       {/* 브랜드 */}
       <div className="relative z-10 shrink-0 px-5 pt-4 pb-4 fade-up">
@@ -117,7 +157,7 @@ export default function AdminSidebar({
           </div>
         </div>
       </div>
-      
+
       {/* 사용자 카드 */}
       <div
         className="relative z-10 shrink-0 px-6 pb-5 soft-scale-in"
@@ -143,7 +183,7 @@ export default function AdminSidebar({
                     <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-70 [animation:dot-ping-soft_1.8s_ease-out_infinite]" />
                     <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
                   </span>
-                  <span className="truncate">{user?.role || "권한 확인 중"}</span>
+                  <span className="truncate">{displayRole}</span>
                 </div>
               </div>
 

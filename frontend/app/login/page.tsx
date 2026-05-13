@@ -13,7 +13,14 @@ export default function LoginPage() {
 
   const redirectToFirstMenu = async (roleId: number | string) => {
     try {
-      const menuRes = await fetch(`/api/menus?role_id=${roleId}`);
+      const menuRes = await fetch(`/api/menus?role_id=${roleId}`, {
+        cache: "no-store",
+      });
+
+      if (!menuRes.ok) {
+        throw new Error("메뉴 조회 실패");
+      }
+
       const menuData = await menuRes.json();
 
       if (Array.isArray(menuData) && menuData.length > 0 && menuData[0]?.path) {
@@ -60,6 +67,7 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
         body: JSON.stringify({ name, password }),
       });
 

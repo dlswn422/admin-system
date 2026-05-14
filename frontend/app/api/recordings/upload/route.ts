@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 const BUCKET_NAME = "recordings";
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 function extractStoragePathFromPublicUrl(fileUrl: string) {
   try {
@@ -40,9 +44,7 @@ export async function GET(request: Request) {
       .eq("customer_id", customer_id)
       .order("created_at", { ascending: false });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    if (error) throw error;
 
     return NextResponse.json(data || []);
   } catch (error: any) {
@@ -57,6 +59,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
+
     const file = formData.get("file") as File | null;
     const customerId = formData.get("customer_id") as string | null;
     const createdBy = formData.get("created_by") as string | null;
@@ -68,9 +71,19 @@ export async function POST(request: Request) {
       );
     }
 
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        {
+          error: "파일 용량이 너무 큽니다. 최대 50MB까지 업로드할 수 있습니다.",
+        },
+        { status: 400 }
+      );
+    }
+
     const safeFileName = file.name
       .normalize("NFKD")
       .replace(/[^\w.\-]/g, "_");
+
     const filePath = `${customerId}/${Date.now()}_${safeFileName}`;
 
     const { error: uploadError } = await supabase.storage
@@ -78,6 +91,7 @@ export async function POST(request: Request) {
       .upload(filePath, file, {
         cacheControl: "3600",
         upsert: false,
+        contentType: file.type || "application/octet-stream",
       });
 
     if (uploadError) {
@@ -106,11 +120,14 @@ export async function POST(request: Request) {
       .single();
 
     if (dbError) {
+      await supabase.storage.from(BUCKET_NAME).remove([filePath]);
       throw dbError;
     }
 
     return NextResponse.json(data);
   } catch (error: any) {
+    console.error("녹취 업로드 오류:", error);
+
     return NextResponse.json(
       { error: error.message || "녹취 업로드 실패" },
       { status: 500 }

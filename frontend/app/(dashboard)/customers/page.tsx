@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
 import {
   UserPlus,
   Search,
@@ -25,6 +26,13 @@ import {
   ExternalLink,
   Clock,
 } from "lucide-react";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+const RECORDING_BUCKET_NAME = "recordings";
 
 interface Customer {
   id: string;
@@ -538,6 +546,52 @@ export default function CustomersPage() {
     setIsDeleteModalOpen(true);
   };
 
+  const uploadRecordingFile = async (file: File, customerId: string) => {
+    const safeFileName = file.name
+      .normalize("NFKD")
+      .replace(/[^\w.\-]/g, "_");
+
+    const filePath = `${customerId}/${Date.now()}_${safeFileName}`;
+
+    // Vercel API Route를 거치지 않고 Supabase Storage에 직접 업로드합니다.
+    const { error: uploadError } = await supabase.storage
+      .from(RECORDING_BUCKET_NAME)
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || "application/octet-stream",
+      });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from(RECORDING_BUCKET_NAME).getPublicUrl(filePath);
+
+    // API에는 파일 본문이 아니라 DB 저장용 메타데이터만 전달합니다.
+    const res = await fetch("/api/recordings/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        customer_id: customerId,
+        file_name: file.name,
+        file_url: publicUrl,
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      // DB 저장 실패 시 Storage 파일을 롤백합니다.
+      await supabase.storage.from(RECORDING_BUCKET_NAME).remove([filePath]);
+      throw new Error(data?.error || "녹취 정보 저장 실패");
+    }
+
+    return data;
+  };
+
   const handleRecordingUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -549,13 +603,8 @@ export default function CustomersPage() {
 
     try {
       setIsUploadingRecording(true);
-      const body = new FormData();
-      body.append("file", file);
-      body.append("customer_id", selectedCustomer.id);
 
-      const res = await fetch("/api/recordings/upload", { method: "POST", body });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || "녹취 업로드 실패");
+      await uploadRecordingFile(file, selectedCustomer.id);
 
       showToast("녹취 파일이 업로드되었습니다.");
       await fetchRecordings(selectedCustomer.id);

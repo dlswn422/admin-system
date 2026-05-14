@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-export const runtime = "nodejs";
-export const maxDuration = 60;
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 const BUCKET_NAME = "recordings";
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 function extractStoragePathFromPublicUrl(fileUrl: string) {
   try {
@@ -25,7 +21,6 @@ function extractStoragePathFromPublicUrl(fileUrl: string) {
   }
 }
 
-// 1. 특정 고객의 녹취 목록 가져오기
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -55,87 +50,54 @@ export async function GET(request: Request) {
   }
 }
 
-// 2. 녹취 파일 업로드
+// 파일 업로드 X, DB 저장만 담당
 export async function POST(request: Request) {
   try {
-    const formData = await request.formData();
-
-    const file = formData.get("file") as File | null;
-    const customerId = formData.get("customer_id") as string | null;
-    const createdBy = formData.get("created_by") as string | null;
-
-    if (!file || !customerId) {
-      return NextResponse.json(
-        { error: "파일 또는 고객 ID 누락" },
-        { status: 400 }
-      );
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        {
-          error: "파일 용량이 너무 큽니다. 최대 50MB까지 업로드할 수 있습니다.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const safeFileName = file.name
-      .normalize("NFKD")
-      .replace(/[^\w.\-]/g, "_");
-
-    const filePath = `${customerId}/${Date.now()}_${safeFileName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET_NAME)
-      .upload(filePath, file, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: file.type || "application/octet-stream",
-      });
-
-    if (uploadError) {
-      throw uploadError;
-    }
+    const body = await request.json();
 
     const {
-      data: { publicUrl },
-    } = supabase.storage.from(BUCKET_NAME).getPublicUrl(filePath);
+      customer_id,
+      file_name,
+      file_url,
+      created_by,
+      duration = null,
+    } = body;
 
-    const payload: Record<string, any> = {
-      customer_id: customerId,
-      file_name: file.name,
-      file_url: publicUrl,
-      duration: null,
-    };
-
-    if (createdBy) {
-      payload.created_by = createdBy;
+    if (!customer_id || !file_name || !file_url) {
+      return NextResponse.json(
+        { error: "고객 ID, 파일명, 파일 URL이 필요합니다." },
+        { status: 400 }
+      );
     }
 
-    const { data, error: dbError } = await supabase
+    const payload: Record<string, any> = {
+      customer_id,
+      file_name,
+      file_url,
+      duration,
+    };
+
+    if (created_by) {
+      payload.created_by = created_by;
+    }
+
+    const { data, error } = await supabase
       .from("customer_recordings")
       .insert([payload])
       .select()
       .single();
 
-    if (dbError) {
-      await supabase.storage.from(BUCKET_NAME).remove([filePath]);
-      throw dbError;
-    }
+    if (error) throw error;
 
     return NextResponse.json(data);
   } catch (error: any) {
-    console.error("녹취 업로드 오류:", error);
-
     return NextResponse.json(
-      { error: error.message || "녹취 업로드 실패" },
+      { error: error.message || "녹취 정보 저장 실패" },
       { status: 500 }
     );
   }
 }
 
-// 3. 녹취 삭제
 export async function DELETE(request: Request) {
   try {
     const body = await request.json();
@@ -181,12 +143,7 @@ export async function DELETE(request: Request) {
       .delete()
       .eq("id", recordingId);
 
-    if (deleteError) {
-      return NextResponse.json(
-        { error: deleteError.message },
-        { status: 500 }
-      );
-    }
+    if (deleteError) throw deleteError;
 
     return NextResponse.json({
       success: true,

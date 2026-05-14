@@ -173,23 +173,15 @@ export default function CustomersPage() {
     return new Date().toISOString().split("T")[0];
   }, []);
 
-  const normalizeDateTimeValue = useCallback(
-    (value?: string | null, fallbackDate = getTodayDate(), fallbackHour = "09", fallbackMinute = "00") => {
-      const normalized = String(value || "").replace("T", " ").trim();
+  const normalizeConsultDateOnlyValue = useCallback((value?: string | null) => {
+    const normalized = String(value || "").replace("T", " ").trim();
 
-      if (!normalized || normalized === "null") {
-        return `${fallbackDate} ${fallbackHour}:${fallbackMinute}:00`;
-      }
+    if (!normalized || normalized === "null") {
+      return "";
+    }
 
-      const [date = fallbackDate, time = ""] = normalized.split(" ");
-      const [hour = fallbackHour, minute = fallbackMinute] = time.split(":");
-      const normalizedHour = hour || fallbackHour;
-      const normalizedMinute = minute || fallbackMinute;
-
-      return `${date || fallbackDate} ${normalizedHour}:${normalizedMinute}:00`;
-    },
-    [getTodayDate]
-  );
+    return normalized.split(" ")[0] || "";
+  }, []);
 
   const normalizeSalesDateTimeValue = useCallback(
     (value?: string | null, fallbackDate = getTodayDate()) => {
@@ -258,10 +250,17 @@ export default function CustomersPage() {
     return minute || fallback;
   }, []);
 
-  const buildDateTimeValue = useCallback((date: string, hour: string, minute: string) => {
+  const buildDateOnlyValue = useCallback((date: string) => {
+    return date || "";
+  }, []);
+
+  const buildSalesDateTimeValue = useCallback((date: string, hour: string, minute: string) => {
     if (!date) return "";
-    if (!hour || !minute) return date;
-    return `${date} ${hour}:${minute}:00`;
+
+    const normalizedHour = hour || "09";
+    const normalizedMinute = minute || "00";
+
+    return `${date} ${normalizedHour}:${normalizedMinute}:00`;
   }, []);
 
   const getUserNameById = useCallback(
@@ -627,7 +626,7 @@ export default function CustomersPage() {
     const today = getTodayDate();
 
     if (customer) {
-      const cleanConsultDate = normalizeDateTimeValue(customer.consult_date, today, "09", "00");
+      const cleanConsultDate = normalizeConsultDateOnlyValue(customer.consult_date);
 
       const cleanReceiptDate = customer.receipt_date
         ? String(customer.receipt_date).split("T")[0]
@@ -1068,7 +1067,7 @@ export default function CustomersPage() {
                 </div>
 
                 {paginatedData.map((c) => {
-                  const { datePart, timePart } = getDateTimeParts(c.consult_date);
+                  const { datePart } = getDateTimeParts(c.consult_date);
                   const { datePart: salesDatePart, timePart: salesTimePart } = getDateTimeParts(c.sales_date, "09:00");
                   return (
                     <div key={c.id} className="group rounded-[24px] border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 px-5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:border-blue-200">
@@ -1078,7 +1077,6 @@ export default function CustomersPage() {
                         </div>
                         <button type="button" onClick={() => openModal(c)} className="text-center flex flex-col">
                           <span className="text-xs font-semibold text-slate-700">{datePart}</span>
-                          {timePart && <span className="text-[10px] font-black text-blue-500 mt-0.5">{timePart}</span>}
                         </button>
                         <button type="button" onClick={() => openModal(c)} className="text-left overflow-hidden">
                           <div className="truncate text-sm font-black tracking-[-0.03em] text-slate-900">{c.company_name || "-"}</div>
@@ -1125,8 +1123,8 @@ export default function CustomersPage() {
 
       {/* Main Form Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/45 p-6 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="relative max-h-[95vh] w-full max-w-6xl overflow-hidden rounded-[34px] border border-white/10 bg-white shadow-2xl flex flex-col text-slate-900">
+        <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-xl animate-in fade-in duration-300 md:items-center md:p-4">
+          <div className="relative flex h-[96vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[28px] border border-white/10 bg-white text-slate-900 shadow-2xl md:h-auto md:max-h-[90vh] md:rounded-[30px]">
             {isModalBusy && (
               <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm">
                 <div className="flex flex-col items-center rounded-[28px] border border-slate-200 bg-white/95 px-10 py-8 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
@@ -1145,41 +1143,41 @@ export default function CustomersPage() {
               </div>
             )}
 
-            <div className="custom-scrollbar flex-1 overflow-y-auto p-8 md:p-10">
-              <button type="button" onClick={() => !isModalBusy && setIsModalOpen(false)} disabled={isModalBusy} className="absolute right-6 top-6 flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition-all hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"><X className="h-5 w-5" /></button>
+            <div className="custom-scrollbar flex-1 overflow-y-auto p-4 md:p-6">
+              <button type="button" onClick={() => !isModalBusy && setIsModalOpen(false)} disabled={isModalBusy} className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full text-slate-300 transition-all hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"><X className="h-5 w-5" /></button>
 
-              <div className="mb-10">
+              <div className="mb-5 pr-12">
                 <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-slate-500 uppercase"><UserCheck className="h-3.5 w-3.5" />고객 데이터 설정</div>
-                <h2 className="mt-4 text-[2rem] font-black tracking-[-0.05em] text-slate-900">{selectedCustomer ? "고객 정보 수정" : "신규 고객 등록"}</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-500">업체 정보와 상담/영업 진행 상황을 한 번에 관리합니다.</p>
+                <h2 className="mt-3 text-xl md:text-[1.6rem] font-black tracking-[-0.05em] text-slate-900">{selectedCustomer ? "고객 정보 수정" : "신규 고객 등록"}</h2>
+                <p className="mt-1 text-xs md:text-sm leading-5 text-slate-500">업체 정보와 상담/영업 진행 상황을 한 번에 관리합니다.</p>
               </div>
 
-              <form onSubmit={handleSave} className="space-y-8">
+              <form onSubmit={handleSave} className="space-y-4">
                 {/* 기본 정보 */}
-                <section className="rounded-[28px] border border-slate-200 bg-slate-50/70 p-6">
-                  <div className="mb-5 flex items-center gap-2"><div className="h-7 w-1 rounded-full bg-blue-500" /><h3 className="text-sm font-black tracking-[0.15em] text-slate-900">기본 정보</h3></div>
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    <label className="space-y-2"><span className="text-sm font-bold text-slate-700">업체명 <span className="text-rose-500">*</span></span>
-                      <input value={formData.company_name || ""} onChange={(e) => setFormData({ ...formData, company_name: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 transition-all" />
+                <section className="rounded-[20px] border border-slate-200 bg-slate-50/70 p-3 md:p-4">
+                  <div className="mb-3 flex items-center gap-2"><div className="h-7 w-1 rounded-full bg-blue-500" /><h3 className="text-sm font-black tracking-[0.15em] text-slate-900">기본 정보</h3></div>
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                    <label className="space-y-1"><span className="text-[11px] font-bold text-slate-700">업체명 <span className="text-rose-500">*</span></span>
+                      <input value={formData.company_name || ""} onChange={(e) => setFormData({ ...formData, company_name: e.target.value })} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 outline-none focus:border-blue-500 transition-all" />
                     </label>
-                    <label className="space-y-2"><span className="text-sm font-bold text-slate-700">대표자명</span>
-                      <input value={formData.customer_name || ""} onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" />
+                    <label className="space-y-1"><span className="text-[11px] font-bold text-slate-700">대표자명</span>
+                      <input value={formData.customer_name || ""} onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 outline-none" />
                     </label>
-                    <label className="space-y-2"><span className="text-sm font-bold text-slate-700">접수일</span>
-                      <input type="date" value={formData.receipt_date || ""} onChange={(e) => setFormData({ ...formData, receipt_date: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" />
+                    <label className="space-y-1"><span className="text-[11px] font-bold text-slate-700">접수일</span>
+                      <input type="date" value={formData.receipt_date || ""} onChange={(e) => setFormData({ ...formData, receipt_date: e.target.value })} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 outline-none" />
                     </label>
-                    <label className="space-y-2"><span className="text-sm font-bold text-slate-700">유선전화</span>
-                      <input value={formData.landline_phone || ""} onChange={(e) => setFormData({ ...formData, landline_phone: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" />
+                    <label className="space-y-1"><span className="text-[11px] font-bold text-slate-700">유선전화</span>
+                      <input value={formData.landline_phone || ""} onChange={(e) => setFormData({ ...formData, landline_phone: e.target.value })} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 outline-none" />
                     </label>
-                    <label className="space-y-2"><span className="text-sm font-bold text-slate-700">핸드폰</span>
-                      <input value={formData.mobile_phone || ""} onChange={(e) => setFormData({ ...formData, mobile_phone: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" />
+                    <label className="space-y-1"><span className="text-[11px] font-bold text-slate-700">핸드폰</span>
+                      <input value={formData.mobile_phone || ""} onChange={(e) => setFormData({ ...formData, mobile_phone: e.target.value })} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 outline-none" />
                     </label>
                     
                     <div className="hidden xl:block" />
 
                     <label className="space-y-2 md:col-span-2 xl:col-span-3">
                       <span className="text-sm font-bold text-slate-700">비고</span>
-                      <textarea value={formData.note || ""} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="min-h-[110px] w-full rounded-[18px] border border-slate-200 bg-white px-4 py-4 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 transition-all resize-none shadow-sm" />
+                      <textarea value={formData.note || ""} onChange={(e) => setFormData({ ...formData, note: e.target.value })} className="min-h-[58px] w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-blue-500 transition-all shadow-sm" />
                     </label>
 
                     <label className="space-y-2 md:col-span-2 xl:col-span-3 pt-2">
@@ -1187,7 +1185,7 @@ export default function CustomersPage() {
                       <textarea 
                         value={formData.address || ""} 
                         onChange={(e) => setFormData({ ...formData, address: e.target.value })} 
-                        className="min-h-[120px] w-full rounded-[24px] border-2 border-slate-200 bg-white px-6 py-5 text-[15px] font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 transition-all resize-none shadow-inner" 
+                        className="min-h-[58px] w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-blue-500 transition-all shadow-inner" 
                         placeholder="전체 주소를 한눈에 보기 편하게 입력하세요."
                       />
                     </label>
@@ -1195,15 +1193,15 @@ export default function CustomersPage() {
                 </section>
 
                 {/* 상담 정보 */}
-                <section className="rounded-[28px] border border-slate-200 bg-slate-50/70 p-6">
-                  <div className="mb-5 flex items-center gap-2"><div className="h-7 w-1 rounded-full bg-emerald-500" /><h3 className="text-sm font-black tracking-[0.15em] text-slate-900">상담 정보</h3></div>
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <section className="rounded-[20px] border border-slate-200 bg-slate-50/70 p-3 md:p-4">
+                  <div className="mb-3 flex items-center gap-2"><div className="h-7 w-1 rounded-full bg-emerald-500" /><h3 className="text-sm font-black tracking-[0.15em] text-slate-900">상담 정보</h3></div>
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                     <label className="space-y-2">
                       <span className="text-sm font-bold text-slate-700">상담사</span>
                       <select
                         value={formData.tm_id || ""}
                         onChange={(e) => setFormData({ ...formData, tm_id: e.target.value })}
-                        className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 transition-all"
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 outline-none focus:border-emerald-500 transition-all"
                       >
                         <option value="">미배정</option>
                         {users
@@ -1215,34 +1213,17 @@ export default function CustomersPage() {
                           ))}
                       </select>
                     </label>
-                    <div className="space-y-2 xl:col-span-1">
-                      <span className="text-sm font-bold text-slate-700 flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> 상담일시 (날짜 / 시 / 분)</span>
-                      <div className="flex gap-2">
-                        <input type="date" value={getDateInputValue(formData.consult_date)} onChange={(e) => {
-                          const hour = getTimeHourValue(formData.consult_date, "", false);
-                          const minute = getTimeMinuteValue(formData.consult_date, "", false);
-                          setFormData({ ...formData, consult_date: buildDateTimeValue(e.target.value, hour, minute) });
-                        }} className="h-14 flex-[2] rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500" />
-                        <select value={getTimeHourValue(formData.consult_date, "", false)} onChange={(e) => {
-                          const date = getDateInputValue(formData.consult_date);
-                          const minute = e.target.value ? getTimeMinuteValue(formData.consult_date, "", false) || "00" : "";
-                          setFormData({ ...formData, consult_date: buildDateTimeValue(date, e.target.value, minute) });
-                        }} className="h-14 flex-1 rounded-[18px] border border-slate-200 bg-white px-2 text-sm font-black text-center text-slate-900 outline-none focus:border-emerald-500">
-                          <option value="">시</option>
-                          {hoursList.map(h => <option key={h} value={h}>{h}시</option>)}
-                        </select>
-                        <select value={getTimeMinuteValue(formData.consult_date, "", false)} onChange={(e) => {
-                          const date = getDateInputValue(formData.consult_date);
-                          const hour = e.target.value ? getTimeHourValue(formData.consult_date, "", false) || "09" : "";
-                          setFormData({ ...formData, consult_date: buildDateTimeValue(date, hour, e.target.value) });
-                        }} className="h-14 flex-1 rounded-[18px] border border-slate-200 bg-white px-2 text-sm font-black text-center text-slate-900 outline-none focus:border-emerald-500">
-                          <option value="">분</option>
-                          {minutesList.map(m => <option key={m} value={m}>{m}분</option>)}
-                        </select>
-                      </div>
+                    <div className="space-y-1">
+                      <span className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700"><Clock className="h-3.5 w-3.5" /> 상담일자</span>
+                      <input
+                        type="date"
+                        value={getDateInputValue(formData.consult_date)}
+                        onChange={(e) => setFormData({ ...formData, consult_date: buildDateOnlyValue(e.target.value) })}
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500"
+                      />
                     </div>
-                    <label className="space-y-2"><span className="text-sm font-bold text-slate-700">상담 상태</span>
-                      <select value={formData.consult_status || ""} onChange={(e) => setFormData({ ...formData, consult_status: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none">
+                    <label className="space-y-1"><span className="text-[11px] font-bold text-slate-700">상담 상태</span>
+                      <select value={formData.consult_status || ""} onChange={(e) => setFormData({ ...formData, consult_status: e.target.value })} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 outline-none">
                         <option value="">선택 안함</option>
                         {consultCodes.map((c) => (<option key={c.code_value} value={c.code_name}>{c.code_name}</option>))}
                       </select>
@@ -1276,36 +1257,70 @@ export default function CustomersPage() {
                 </section>
 
                 {/* 영업 정보 */}
-                <section className="rounded-[28px] border border-slate-200 bg-slate-50/70 p-6">
-                  <div className="mb-5 flex items-center gap-2"><div className="h-7 w-1 rounded-full bg-violet-500" /><h3 className="text-sm font-black tracking-[0.15em] text-slate-900">영업 정보</h3></div>
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    <label className="space-y-2"><span className="text-sm font-bold text-slate-700">영업담당</span>
-                      <select value={formData.sales_id || ""} onChange={(e) => setFormData({ ...formData, sales_id: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none">
+                <section className="rounded-[20px] border border-slate-200 bg-slate-50/70 p-3 md:p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="h-5 w-1 rounded-full bg-violet-500" />
+                    <h3 className="text-xs font-black tracking-[0.12em] text-slate-900">영업 정보</h3>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                    <label className="space-y-1">
+                      <span className="text-[11px] font-bold text-slate-700">영업담당</span>
+                      <select
+                        value={formData.sales_id || ""}
+                        onChange={(e) => setFormData({ ...formData, sales_id: e.target.value })}
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 outline-none focus:border-violet-500"
+                      >
                         <option value="">선택 안함</option>
-                        {users.filter((u) => u.role_name === "영업").map((u) => (<option key={u.id} value={u.id}>{u.name}</option>))}
+                        {users.filter((u) => u.role_name === "영업").map((u) => (
+                          <option key={u.id} value={u.id}>{u.name}</option>
+                        ))}
                       </select>
                     </label>
-                    <div className="space-y-2 xl:col-span-1">
-                      <span className="flex items-center gap-1.5 text-sm font-bold text-slate-700"><Clock className="h-3.5 w-3.5" /> 영업일시 (날짜 / 시 / 분)</span>
-                      <div className="flex gap-2">
+
+                    <label className="space-y-1">
+                      <span className="text-[11px] font-bold text-slate-700">영업 상태</span>
+                      <select
+                        value={formData.sales_status || ""}
+                        onChange={(e) => setFormData({ ...formData, sales_status: e.target.value })}
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 outline-none focus:border-violet-500"
+                      >
+                        <option value="">선택 안함</option>
+                        {salesCodes.map((s) => (
+                          <option key={s.code_value} value={s.code_name}>{s.code_name}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div className="col-span-2 space-y-1">
+                      <span className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
+                        <Clock className="h-3.5 w-3.5" /> 영업일시
+                      </span>
+                      <div className="grid grid-cols-[minmax(0,1.55fr)_72px_72px] gap-1.5">
                         <input
                           type="date"
                           value={getDateInputValue(formData.sales_date)}
                           onChange={(e) => {
                             const hour = getTimeHourValue(formData.sales_date, "", false);
                             const minute = getTimeMinuteValue(formData.sales_date, "", false);
-                            setFormData({ ...formData, sales_date: buildDateTimeValue(e.target.value, hour, minute) });
+                            setFormData({
+                              ...formData,
+                              sales_date: buildSalesDateTimeValue(e.target.value, hour, minute),
+                            });
                           }}
-                          className="h-14 flex-[2] rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-violet-500"
+                          className="h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:border-violet-500"
                         />
                         <select
                           value={getTimeHourValue(formData.sales_date, "", false)}
                           onChange={(e) => {
                             const date = getDateInputValue(formData.sales_date);
-                            const minute = e.target.value ? getTimeMinuteValue(formData.sales_date, "", false) || "00" : "";
-                            setFormData({ ...formData, sales_date: buildDateTimeValue(date, e.target.value, minute) });
+                            const minute = getTimeMinuteValue(formData.sales_date, "", false);
+                            setFormData({
+                              ...formData,
+                              sales_date: buildSalesDateTimeValue(date, e.target.value, minute),
+                            });
                           }}
-                          className="h-14 flex-1 rounded-[18px] border border-slate-200 bg-white px-2 text-center text-sm font-black text-slate-900 outline-none focus:border-violet-500"
+                          className="h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-1 text-center text-xs font-black text-slate-900 outline-none focus:border-violet-500"
                         >
                           <option value="">시</option>
                           {hoursList.map((h) => <option key={h} value={h}>{h}시</option>)}
@@ -1314,33 +1329,47 @@ export default function CustomersPage() {
                           value={getTimeMinuteValue(formData.sales_date, "", false)}
                           onChange={(e) => {
                             const date = getDateInputValue(formData.sales_date);
-                            const hour = e.target.value ? getTimeHourValue(formData.sales_date, "", false) || "09" : "";
-                            setFormData({ ...formData, sales_date: buildDateTimeValue(date, hour, e.target.value) });
+                            const hour = getTimeHourValue(formData.sales_date, "", false);
+                            setFormData({
+                              ...formData,
+                              sales_date: buildSalesDateTimeValue(date, hour, e.target.value),
+                            });
                           }}
-                          className="h-14 flex-1 rounded-[18px] border border-slate-200 bg-white px-2 text-center text-sm font-black text-slate-900 outline-none focus:border-violet-500"
+                          className="h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-1 text-center text-xs font-black text-slate-900 outline-none focus:border-violet-500"
                         >
                           <option value="">분</option>
                           {minutesList.map((m) => <option key={m} value={m}>{m}분</option>)}
                         </select>
                       </div>
                     </div>
-                    <label className="space-y-2"><span className="text-sm font-bold text-slate-700">영업 상태</span>
-                      <select value={formData.sales_status || ""} onChange={(e) => setFormData({ ...formData, sales_status: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none">
-                        <option value="">선택 안함</option>
-                        {salesCodes.map((s) => (<option key={s.code_value} value={s.code_name}>{s.code_name}</option>))}
-                      </select>
+
+                    <label className="space-y-1">
+                      <span className="text-[11px] font-bold text-slate-700">매출</span>
+                      <input
+                        type="number"
+                        value={String(formData.sales_commission ?? 0)}
+                        onChange={(e) => setFormData({ ...formData, sales_commission: Number(e.target.value || 0) })}
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 outline-none focus:border-violet-500"
+                      />
                     </label>
-                    <label className="space-y-2"><span className="text-sm font-bold text-slate-700">매출</span><input type="number" value={String(formData.sales_commission ?? 0)} onChange={(e) => setFormData({ ...formData, sales_commission: Number(e.target.value || 0) })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" /></label>
-                    <label className="space-y-2 md:col-span-2"><span className="text-sm font-bold text-slate-700">영업 메모</span><textarea value={formData.sales_memo || ""} onChange={(e) => setFormData({ ...formData, sales_memo: e.target.value })} className="min-h-[110px] w-full rounded-[18px] border border-slate-200 bg-white px-4 py-4 text-sm font-semibold text-slate-900 outline-none" /></label>
+
+                    <label className="col-span-2 space-y-1 md:col-span-3">
+                      <span className="text-[11px] font-bold text-slate-700">영업 메모</span>
+                      <textarea
+                        value={formData.sales_memo || ""}
+                        onChange={(e) => setFormData({ ...formData, sales_memo: e.target.value })}
+                        className="min-h-[58px] w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:border-violet-500"
+                      />
+                    </label>
                   </div>
                 </section>
 
                 {/* Footer Buttons */}
-                <div className="flex flex-col gap-4 rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] md:flex-row md:items-center md:justify-between">
-                  <div className="text-sm font-semibold text-slate-600 italic">업체명 필수 입력 후 저장 가능합니다.</div>
-                  <div className="flex gap-3">
-                    <button type="button" onClick={() => setIsModalOpen(false)} disabled={isModalBusy} className="rounded-2xl border border-slate-200 bg-white px-8 py-4 text-sm font-bold text-slate-500 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">취소</button>
-                    <button type="submit" disabled={isSavingCustomer || !String(formData.company_name || "").trim()} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-slate-900 to-blue-600 px-10 py-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60 transition-all hover:shadow-lg">{isSavingCustomer && <LoadingSpinner />} {isSavingCustomer ? "저장 중..." : "저장"}</button>
+                <div className="sticky bottom-0 flex items-center justify-between gap-2 rounded-[18px] border border-slate-200 bg-white px-3 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)]">
+                  <div className="text-[11px] font-semibold text-slate-600 italic">업체명 필수 입력 후 저장 가능합니다.</div>
+                  <div className="flex shrink-0 gap-2">
+                    <button type="button" onClick={() => setIsModalOpen(false)} disabled={isModalBusy} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-500 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">취소</button>
+                    <button type="submit" disabled={isSavingCustomer || !String(formData.company_name || "").trim()} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-slate-900 to-blue-600 px-5 py-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-60 transition-all hover:shadow-lg">{isSavingCustomer && <LoadingSpinner />} {isSavingCustomer ? "저장 중..." : "저장"}</button>
                   </div>
                 </div>
               </form>

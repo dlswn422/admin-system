@@ -1190,7 +1190,7 @@ export default function CustomersPage() {
                         {salesCodes.map((s) => (<option key={s.code_value} value={s.code_name}>{s.code_name}</option>))}
                       </select>
                     </label>
-                    <label className="space-y-2"><span className="text-sm font-bold text-slate-700">영업수당</span><input type="number" value={String(formData.sales_commission ?? 0)} onChange={(e) => setFormData({ ...formData, sales_commission: Number(e.target.value || 0) })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" /></label>
+                    <label className="space-y-2"><span className="text-sm font-bold text-slate-700">매출</span><input type="number" value={String(formData.sales_commission ?? 0)} onChange={(e) => setFormData({ ...formData, sales_commission: Number(e.target.value || 0) })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" /></label>
                     <label className="space-y-2 md:col-span-2"><span className="text-sm font-bold text-slate-700">영업 메모</span><textarea value={formData.sales_memo || ""} onChange={(e) => setFormData({ ...formData, sales_memo: e.target.value })} className="min-h-[110px] w-full rounded-[18px] border border-slate-200 bg-white px-4 py-4 text-sm font-semibold text-slate-900 outline-none" /></label>
                   </div>
                 </section>

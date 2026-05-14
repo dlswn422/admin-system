@@ -169,6 +169,99 @@ export default function CustomersPage() {
     return String(val).split("T")[0].replace(/-/g, ".");
   }, []);
 
+  const getTodayDate = useCallback(() => {
+    return new Date().toISOString().split("T")[0];
+  }, []);
+
+  const normalizeDateTimeValue = useCallback(
+    (value?: string | null, fallbackDate = getTodayDate(), fallbackHour = "09", fallbackMinute = "00") => {
+      const normalized = String(value || "").replace("T", " ").trim();
+
+      if (!normalized || normalized === "null") {
+        return `${fallbackDate} ${fallbackHour}:${fallbackMinute}:00`;
+      }
+
+      const [date = fallbackDate, time = ""] = normalized.split(" ");
+      const [hour = fallbackHour, minute = fallbackMinute] = time.split(":");
+      const normalizedHour = hour || fallbackHour;
+      const normalizedMinute = minute || fallbackMinute;
+
+      return `${date || fallbackDate} ${normalizedHour}:${normalizedMinute}:00`;
+    },
+    [getTodayDate]
+  );
+
+  const normalizeSalesDateTimeValue = useCallback(
+    (value?: string | null, fallbackDate = getTodayDate()) => {
+      const normalized = String(value || "").replace("T", " ").trim();
+
+      if (!normalized || normalized === "null") {
+        return `${fallbackDate} 09:00:00`;
+      }
+
+      const [date = fallbackDate, time = ""] = normalized.split(" ");
+      const [hour = "09", minute = "00"] = time.split(":");
+
+      if (!time || (hour === "00" && minute === "00")) {
+        return `${date || fallbackDate} 09:00:00`;
+      }
+
+      return `${date || fallbackDate} ${hour || "09"}:${minute || "00"}:00`;
+    },
+    [getTodayDate]
+  );
+
+  const getDateTimeParts = useCallback((val?: string | null, defaultTimePart = "") => {
+    if (!val || String(val) === "null") {
+      return { datePart: "-", timePart: "" };
+    }
+
+    const normalized = String(val).replace("T", " ").trim();
+    const [date = "", time = ""] = normalized.split(" ");
+    const rawTimePart = time ? time.slice(0, 5) : "";
+    const timePart = defaultTimePart && (!rawTimePart || rawTimePart === "00:00") ? defaultTimePart : rawTimePart;
+
+    return {
+      datePart: date ? date.replace(/-/g, ".") : "-",
+      timePart,
+    };
+  }, []);
+
+  const getDateInputValue = useCallback((val?: string | null) => {
+    if (!val || String(val) === "null") return "";
+    return String(val).replace("T", " ").split(" ")[0] || "";
+  }, []);
+
+  const getTimeHourValue = useCallback((val?: string | null, fallback = "09", useFallbackWhenMidnight = false) => {
+    if (!val || String(val) === "null") return fallback;
+
+    const time = String(val).replace("T", " ").split(" ")[1] || "";
+    const [hour = fallback, minute = "00"] = time.split(":");
+
+    if (useFallbackWhenMidnight && hour === "00" && minute === "00") {
+      return fallback;
+    }
+
+    return hour || fallback;
+  }, []);
+
+  const getTimeMinuteValue = useCallback((val?: string | null, fallback = "00", useFallbackWhenMidnight = false) => {
+    if (!val || String(val) === "null") return fallback;
+
+    const time = String(val).replace("T", " ").split(" ")[1] || "";
+    const [hour = "", minute = fallback] = time.split(":");
+
+    if (useFallbackWhenMidnight && hour === "00" && minute === "00") {
+      return fallback;
+    }
+
+    return minute || fallback;
+  }, []);
+
+  const buildDateTimeValue = useCallback((date: string, hour: string, minute: string) => {
+    return date ? `${date} ${hour}:${minute}:00` : "";
+  }, []);
+
   const getUserNameById = useCallback(
     (id?: string | null) => {
       if (!id || id === "unassigned") return "미배정";
@@ -529,18 +622,16 @@ export default function CustomersPage() {
   const openModal = async (customer: Customer | null = null) => {
     setSelectedCustomer(customer);
 
+    const today = getTodayDate();
+
     if (customer) {
-      const cleanConsultDate = customer.consult_date
-        ? String(customer.consult_date).replace("T", " ")
-        : "";
+      const cleanConsultDate = normalizeDateTimeValue(customer.consult_date, today, "09", "00");
 
       const cleanReceiptDate = customer.receipt_date
         ? String(customer.receipt_date).split("T")[0]
-        : "";
+        : today;
 
-      const cleanSalesDate = customer.sales_date
-        ? String(customer.sales_date).split("T")[0]
-        : "";
+      const cleanSalesDate = normalizeSalesDateTimeValue(customer.sales_date, today);
 
       setFormData({
         ...customer,
@@ -550,7 +641,9 @@ export default function CustomersPage() {
       });
     } else {
       setFormData({
-        receipt_date: new Date().toISOString().split("T")[0],
+        receipt_date: today,
+        consult_date: `${today} 09:00:00`,
+        sales_date: `${today} 09:00:00`,
         sales_commission: 0,
       });
     }
@@ -674,7 +767,9 @@ export default function CustomersPage() {
 
     const normalizeDateValue = (value?: string | null) => {
       const v = String(value || "").trim();
-      return v === "" ? null : v;
+      if (v === "") return null;
+      const datePart = v.replace("T", " ").split(" ")[0];
+      return datePart ? v : null;
     };
 
     const url = selectedCustomer ? `/api/customers/${selectedCustomer.id}` : "/api/customers";
@@ -963,21 +1058,19 @@ export default function CustomersPage() {
               [1, 2, 3, 4].map((i) => <div key={i} className="h-24 rounded-[24px] border border-slate-100 bg-slate-50/80 animate-pulse" />)
             ) : (
               <>
-                <div className="grid items-center gap-3 rounded-2xl bg-slate-50 px-5 py-3 text-[10px] font-bold tracking-[0.1em] text-slate-400 grid-cols-[40px_90px_minmax(120px,1.5fr)_90px_110px_minmax(120px,2fr)_80px_90px_90px_90px_90px_40px]">
+                <div className="grid items-center gap-3 rounded-2xl bg-slate-50 px-5 py-3 text-[10px] font-bold tracking-[0.1em] text-slate-400 grid-cols-[40px_90px_minmax(120px,1.4fr)_80px_105px_minmax(120px,1.7fr)_80px_85px_90px_85px_90px_90px_40px]">
                   <div className="flex justify-center">
                     <input type="checkbox" className="h-4 w-4 rounded border-slate-300 accent-blue-600 cursor-pointer" checked={paginatedData.length > 0 && paginatedData.every(c => selectedIds.includes(c.id))} onChange={toggleSelectAll} />
                   </div>
-                  <span className="text-center">상담일자</span><span>업체 정보</span><span className="text-center">대표자명</span><span className="text-center">핸드폰</span><span>주소</span><span className="text-center">접수일</span><span className="text-center">담당 TM</span><span className="text-center">상담상태</span><span className="text-center">영업담당</span><span className="text-right">매출</span><span className="text-center">삭제</span>
+                  <span className="text-center">상담일자</span><span>업체 정보</span><span className="text-center">대표자명</span><span className="text-center">핸드폰</span><span>주소</span><span className="text-center">접수일</span><span className="text-center">담당 TM</span><span className="text-center">상담상태</span><span className="text-center">영업담당</span><span className="text-center">영업일시</span><span className="text-right">매출</span><span className="text-center">삭제</span>
                 </div>
 
                 {paginatedData.map((c) => {
-                  const hasDate = c.consult_date && c.consult_date !== "null";
-                  const cleanDateStr = hasDate ? c.consult_date.replace("T", " ") : "";
-                  const datePart = hasDate ? cleanDateStr.split(" ")[0].replace(/-/g, ".") : "-";
-                  const timePart = hasDate ? cleanDateStr.split(" ")[1]?.slice(0, 5) : "";
+                  const { datePart, timePart } = getDateTimeParts(c.consult_date);
+                  const { datePart: salesDatePart, timePart: salesTimePart } = getDateTimeParts(c.sales_date, "09:00");
                   return (
                     <div key={c.id} className="group rounded-[24px] border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 px-5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-all duration-300 hover:border-blue-200">
-                      <div className="grid items-center gap-3 grid-cols-[40px_90px_minmax(120px,1.5fr)_90px_110px_minmax(120px,2fr)_80px_90px_90px_90px_90px_40px]">
+                      <div className="grid items-center gap-3 grid-cols-[40px_90px_minmax(120px,1.4fr)_80px_105px_minmax(120px,1.7fr)_80px_85px_90px_85px_90px_90px_40px]">
                         <div className="flex justify-center">
                           <input type="checkbox" className="h-4 w-4 rounded border-slate-300 accent-blue-600 cursor-pointer" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} />
                         </div>
@@ -998,6 +1091,10 @@ export default function CustomersPage() {
                           <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-bold ${getStatusTone(c.consult_status)}`}>{c.consult_status || "미지정"}</span>
                         </button>
                         <button type="button" onClick={() => openModal(c)} className="text-center text-xs font-semibold text-slate-700 truncate">{getUserNameById(c.sales_id)}</button>
+                        <button type="button" onClick={() => openModal(c)} className="text-center flex flex-col">
+                          <span className="text-xs font-semibold text-slate-700">{salesDatePart}</span>
+                          {salesTimePart && <span className="mt-0.5 text-[10px] font-black text-violet-500">{salesTimePart}</span>}
+                        </button>
                         <button type="button" onClick={() => openModal(c)} className="text-right text-xs font-black text-slate-900">{formatCommission(c.sales_commission)}</button>
                         <div className="flex justify-center">
                           <button type="button" onClick={() => openDeleteModal(c)} className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-rose-100 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all"><Trash2 className="h-3.5 w-3.5" /></button>
@@ -1119,21 +1216,22 @@ export default function CustomersPage() {
                     <div className="space-y-2 xl:col-span-1">
                       <span className="text-sm font-bold text-slate-700 flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> 상담일시 (날짜 / 시 / 분)</span>
                       <div className="flex gap-2">
-                        <input type="date" value={formData.consult_date ? formData.consult_date.split(" ")[0] : ""} onChange={(e) => {
-                          const time = formData.consult_date?.split(" ")[1] || "09:00:00";
-                          setFormData({ ...formData, consult_date: `${e.target.value} ${time}` });
+                        <input type="date" value={getDateInputValue(formData.consult_date)} onChange={(e) => {
+                          const hour = getTimeHourValue(formData.consult_date);
+                          const minute = getTimeMinuteValue(formData.consult_date);
+                          setFormData({ ...formData, consult_date: buildDateTimeValue(e.target.value, hour, minute) });
                         }} className="h-14 flex-[2] rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500" />
-                        <select value={formData.consult_date && formData.consult_date.split(" ")[1] ? formData.consult_date.split(" ")[1].split(":")[0] : "09"} onChange={(e) => {
-                          const date = formData.consult_date?.split(" ")[0] || "";
-                          const min = formData.consult_date?.split(" ")[1]?.split(":")[1] || "00";
-                          setFormData({ ...formData, consult_date: `${date} ${e.target.value}:${min}:00` });
+                        <select value={getTimeHourValue(formData.consult_date)} onChange={(e) => {
+                          const date = getDateInputValue(formData.consult_date);
+                          const minute = getTimeMinuteValue(formData.consult_date);
+                          setFormData({ ...formData, consult_date: buildDateTimeValue(date, e.target.value, minute) });
                         }} className="h-14 flex-1 rounded-[18px] border border-slate-200 bg-white px-2 text-sm font-black text-center text-slate-900 outline-none focus:border-emerald-500">
                           {hoursList.map(h => <option key={h} value={h}>{h}시</option>)}
                         </select>
-                        <select value={formData.consult_date && formData.consult_date.split(" ")[1] ? formData.consult_date.split(" ")[1].split(":")[1] : "00"} onChange={(e) => {
-                          const date = formData.consult_date?.split(" ")[0] || "";
-                          const hr = formData.consult_date?.split(" ")[1]?.split(":")[0] || "09";
-                          setFormData({ ...formData, consult_date: `${date} ${hr}:${e.target.value}:00` });
+                        <select value={getTimeMinuteValue(formData.consult_date)} onChange={(e) => {
+                          const date = getDateInputValue(formData.consult_date);
+                          const hour = getTimeHourValue(formData.consult_date);
+                          setFormData({ ...formData, consult_date: buildDateTimeValue(date, hour, e.target.value) });
                         }} className="h-14 flex-1 rounded-[18px] border border-slate-200 bg-white px-2 text-sm font-black text-center text-slate-900 outline-none focus:border-emerald-500">
                           {minutesList.map(m => <option key={m} value={m}>{m}분</option>)}
                         </select>
@@ -1183,7 +1281,43 @@ export default function CustomersPage() {
                         {users.filter((u) => u.role_name === "영업").map((u) => (<option key={u.id} value={u.id}>{u.name}</option>))}
                       </select>
                     </label>
-                    <label className="space-y-2"><span className="text-sm font-bold text-slate-700">영업일자</span><input type="date" value={formData.sales_date || ""} onChange={(e) => setFormData({ ...formData, sales_date: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none" /></label>
+                    <div className="space-y-2 xl:col-span-1">
+                      <span className="flex items-center gap-1.5 text-sm font-bold text-slate-700"><Clock className="h-3.5 w-3.5" /> 영업일시 (날짜 / 시 / 분)</span>
+                      <div className="flex gap-2">
+                        <input
+                          type="date"
+                          value={getDateInputValue(formData.sales_date)}
+                          onChange={(e) => {
+                            const hour = getTimeHourValue(formData.sales_date, "09", true);
+                            const minute = getTimeMinuteValue(formData.sales_date, "00", true);
+                            setFormData({ ...formData, sales_date: buildDateTimeValue(e.target.value, hour, minute) });
+                          }}
+                          className="h-14 flex-[2] rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-violet-500"
+                        />
+                        <select
+                          value={getTimeHourValue(formData.sales_date, "09", true)}
+                          onChange={(e) => {
+                            const date = getDateInputValue(formData.sales_date);
+                            const minute = getTimeMinuteValue(formData.sales_date, "00", true);
+                            setFormData({ ...formData, sales_date: buildDateTimeValue(date, e.target.value, minute) });
+                          }}
+                          className="h-14 flex-1 rounded-[18px] border border-slate-200 bg-white px-2 text-center text-sm font-black text-slate-900 outline-none focus:border-violet-500"
+                        >
+                          {hoursList.map((h) => <option key={h} value={h}>{h}시</option>)}
+                        </select>
+                        <select
+                          value={getTimeMinuteValue(formData.sales_date, "00", true)}
+                          onChange={(e) => {
+                            const date = getDateInputValue(formData.sales_date);
+                            const hour = getTimeHourValue(formData.sales_date, "09", true);
+                            setFormData({ ...formData, sales_date: buildDateTimeValue(date, hour, e.target.value) });
+                          }}
+                          className="h-14 flex-1 rounded-[18px] border border-slate-200 bg-white px-2 text-center text-sm font-black text-slate-900 outline-none focus:border-violet-500"
+                        >
+                          {minutesList.map((m) => <option key={m} value={m}>{m}분</option>)}
+                        </select>
+                      </div>
+                    </div>
                     <label className="space-y-2"><span className="text-sm font-bold text-slate-700">영업 상태</span>
                       <select value={formData.sales_status || ""} onChange={(e) => setFormData({ ...formData, sales_status: e.target.value })} className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none">
                         <option value="">선택 안함</option>

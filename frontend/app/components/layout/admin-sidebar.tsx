@@ -109,7 +109,7 @@ export default function AdminSidebar({
   const displayRole = user?.role_name || user?.role || "권한 확인 중";
 
   return (
-    <aside className="dashboard-sidebar-surface relative flex h-screen w-full flex-col overflow-hidden text-slate-100">
+    <aside className="dashboard-sidebar-surface relative flex h-[100dvh] max-h-[100dvh] min-h-[100dvh] w-full flex-col overflow-hidden text-slate-100">
       {/* 배경 장식 */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-16 top-24 h-48 w-48 rounded-full bg-blue-500/10 blur-3xl" />
@@ -119,8 +119,8 @@ export default function AdminSidebar({
       </div>
 
       {/* 브랜드 */}
-      <div className="relative z-10 shrink-0 px-5 pt-4 pb-4 fade-up">
-        <div className="group relative overflow-hidden rounded-[22px] border border-white/10 bg-[linear-gradient(135deg,rgba(8,15,30,0.92),rgba(6,12,24,0.82))] px-5 py-4 shadow-[0_18px_44px_rgba(2,6,23,0.24)] backdrop-blur-xl">
+      <div className="relative z-10 shrink-0 px-5 pt-4 pb-3 fade-up sm:pb-4">
+        <div className="group relative overflow-hidden rounded-[22px] border border-white/10 bg-[linear-gradient(135deg,rgba(8,15,30,0.92),rgba(6,12,24,0.82))] px-5 py-3.5 shadow-[0_18px_44px_rgba(2,6,23,0.24)] backdrop-blur-xl sm:py-4">
           <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.05),transparent_32%,transparent_68%,rgba(59,130,246,0.05))]" />
           <div className="absolute -left-8 top-1/2 h-20 w-20 -translate-y-1/2 rounded-full bg-blue-500/12 blur-3xl transition-transform duration-700 group-hover:scale-125" />
           <div className="absolute right-0 top-0 h-full w-20 bg-gradient-to-l from-blue-500/6 to-transparent opacity-80" />
@@ -128,7 +128,7 @@ export default function AdminSidebar({
 
           <div className="relative flex items-center gap-3.5">
             {/* 로고 */}
-            <div className="relative flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-500 text-white shadow-[0_14px_30px_rgba(59,130,246,0.26)] transition-all duration-500 group-hover:-translate-y-0.5 group-hover:scale-[1.03]">
+            <div className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-500 text-white shadow-[0_14px_30px_rgba(59,130,246,0.26)] transition-all duration-500 group-hover:-translate-y-0.5 group-hover:scale-[1.03] sm:h-[58px] sm:w-[58px]">
               <div className="absolute inset-0 rounded-[18px] bg-[linear-gradient(135deg,rgba(255,255,255,0.18),transparent_35%,transparent_70%,rgba(255,255,255,0.06))]" />
               <svg
                 className="relative z-10 h-6 w-6"
@@ -160,25 +160,25 @@ export default function AdminSidebar({
 
       {/* 사용자 카드 */}
       <div
-        className="relative z-10 shrink-0 px-6 pb-5 soft-scale-in"
+        className="relative z-10 shrink-0 px-6 pb-3 soft-scale-in sm:pb-5"
         style={{ animationDelay: "80ms" }}
       >
-        <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_18px_44px_rgba(2,6,23,0.22)] backdrop-blur-xl">
+        <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] p-4 shadow-[0_18px_44px_rgba(2,6,23,0.22)] backdrop-blur-xl sm:rounded-[26px] sm:p-5">
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent)]" />
           <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-blue-500/10 blur-2xl" />
 
           <div className="relative">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold tracking-[0.16em] text-emerald-200">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold tracking-[0.16em] text-emerald-200 sm:mb-4">
               <ShieldCheck className="h-3 w-3" />
               VERIFIED
             </div>
 
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="truncate text-lg font-bold tracking-tight text-white">
+                <p className="truncate text-base font-bold tracking-tight text-white sm:text-lg">
                   {user?.name || "불러오는 중..."}
                 </p>
-                <div className="mt-2 flex items-center gap-2 text-sm text-slate-400">
+                <div className="mt-1.5 flex items-center gap-2 text-sm text-slate-400 sm:mt-2">
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-70 [animation:dot-ping-soft_1.8s_ease-out_infinite]" />
                     <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
@@ -196,9 +196,9 @@ export default function AdminSidebar({
       </div>
 
       {/* 메뉴 */}
-      <nav className="custom-scrollbar relative z-10 flex-1 overflow-y-auto px-4 pb-5">
+      <nav className="custom-scrollbar relative z-10 min-h-0 flex-1 overflow-y-auto px-4 pb-4">
         <div
-          className="mb-4 px-3 fade-up"
+          className="mb-3 px-3 fade-up sm:mb-4"
           style={{ animationDelay: "120ms" }}
         >
           <p className="text-[11px] font-semibold tracking-[0.18em] text-slate-500">
@@ -231,7 +231,7 @@ export default function AdminSidebar({
                 >
                   <Link
                     href={item.path}
-                    className={`group relative flex items-center gap-4 overflow-hidden rounded-2xl border px-4 py-3.5 transition-all duration-300 ${
+                    className={`group relative flex items-center gap-4 overflow-hidden rounded-2xl border px-4 py-3 transition-all duration-300 sm:py-3.5 ${
                       isActive
                         ? "border-blue-400/20 bg-gradient-to-r from-blue-500/18 via-indigo-500/14 to-violet-500/12 text-white shadow-[0_16px_34px_rgba(37,99,235,0.16)]"
                         : "border-transparent bg-transparent text-slate-400 hover:border-white/8 hover:bg-white/[0.045] hover:text-white"
@@ -283,12 +283,13 @@ export default function AdminSidebar({
       </nav>
 
       {/* 하단 액션 */}
-      <div className="relative z-10 shrink-0 px-6 pb-6 pt-4">
-        <div className="mb-4 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+      <div className="relative z-20 shrink-0 bg-[linear-gradient(180deg,rgba(8,15,30,0),rgba(8,15,30,0.84)_22%,rgba(8,15,30,0.96))] px-6 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-3">
+        <div className="mb-3 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent sm:mb-4" />
 
         <button
           onClick={onLogoutOpen}
-          className="group relative flex w-full items-center justify-center gap-3 overflow-hidden rounded-[20px] border border-rose-400/15 bg-rose-500/[0.08] px-4 py-4 text-sm font-semibold text-rose-200 shadow-[0_14px_32px_rgba(244,63,94,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:border-rose-300/25 hover:bg-rose-500/[0.14] hover:text-white"
+          className="group relative flex w-full items-center justify-center gap-3 overflow-hidden rounded-[18px] border border-rose-400/15 bg-rose-500/[0.08] px-4 py-3.5 text-sm font-semibold text-rose-200 shadow-[0_14px_32px_rgba(244,63,94,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:border-rose-300/25 hover:bg-rose-500/[0.14] hover:text-white sm:rounded-[20px] sm:py-4"
+          type="button"
         >
           <div className="absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 bg-[linear-gradient(120deg,transparent_0%,rgba(255,255,255,0.12)_20%,transparent_40%)] [animation:shimmer-x_2.8s_linear_infinite]" />
           <LogOut className="relative z-10 h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />

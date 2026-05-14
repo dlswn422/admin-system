@@ -113,6 +113,14 @@ export default function ConsultationPage() {
   );
   const minutesList = ["00", "10", "20", "30", "40", "50"];
 
+  const getTodayDateString = () => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const showToast = useCallback(
     (message: string, type: "success" | "error" = "success") => {
       setToast({ message, type });
@@ -245,9 +253,14 @@ export default function ConsultationPage() {
 
   const openModal = async (customer: Customer) => {
     setSelectedCustomer(customer);
-    const baseDate = customer.consult_date
-      ? customer.consult_date.replace("T", " ")
-      : "";
+
+    const today = getTodayDateString();
+
+    const baseDate =
+      customer.consult_date && String(customer.consult_date).trim() !== ""
+        ? customer.consult_date.replace("T", " ")
+        : `${today} 09:00:00`;
+
     setFormData({ ...customer, consult_date: baseDate });
     setIsModalOpen(true);
     await fetchRecordings(customer.id);
@@ -639,7 +652,6 @@ export default function ConsultationPage() {
                   />
                 </div>
 
-                {/* 추가/수정: 유선 번호와 핸드폰 번호 분리 */}
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 ml-1 uppercase tracking-tight">
                     유선 번호
@@ -738,7 +750,9 @@ export default function ConsultationPage() {
                       "09"
                     }
                     onChange={(e) => {
-                      const d = formData.consult_date?.split(" ")[0] || "";
+                      const d =
+                        formData.consult_date?.split(" ")[0] ||
+                        getTodayDateString();
                       const m =
                         formData.consult_date?.split(" ")[1]?.split(":")[1] ||
                         "00";
@@ -761,7 +775,9 @@ export default function ConsultationPage() {
                       "00"
                     }
                     onChange={(e) => {
-                      const d = formData.consult_date?.split(" ")[0] || "";
+                      const d =
+                        formData.consult_date?.split(" ")[0] ||
+                        getTodayDateString();
                       const h =
                         formData.consult_date?.split(" ")[1]?.split(":")[0] ||
                         "09";

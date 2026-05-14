@@ -6,15 +6,51 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-/**
- * 1. 고객 목록 조회 (GET)
- * 페이징(limit/offset) 및 다중 필터 완벽 대응
- */
+const normalizeReferralYn = (value: unknown) => {
+  return String(value || "N").toUpperCase() === "Y" ? "Y" : "N";
+};
+
+const emptyToNull = (value: unknown) => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+
+  const text = String(value).trim();
+  return text === "" ? null : value;
+};
+
+const buildCreatePayload = (body: any) => {
+  const consultStatus =
+    typeof body.consult_status === "string" && body.consult_status.trim() !== ""
+      ? body.consult_status
+      : "대기";
+
+  return {
+    ...body,
+
+    referral_yn: normalizeReferralYn(body.referral_yn),
+    consult_status: consultStatus,
+
+    receipt_date: emptyToNull(body.receipt_date),
+    consult_date: emptyToNull(body.consult_date),
+    sales_date: emptyToNull(body.sales_date),
+
+    // 핵심 수정
+    tm_id: emptyToNull(body.tm_id),
+    sales_id: emptyToNull(body.sales_id),
+
+    sales_commission:
+      body.sales_commission === undefined ||
+      body.sales_commission === null ||
+      body.sales_commission === ""
+        ? 0
+        : Number(body.sales_commission),
+  };
+};
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
 
-    // 파라미터 추출
     const search = searchParams.get("search") || "";
     const tm_id = searchParams.get("tm_id") || "all";
     const sales_id = searchParams.get("sales_id") || "all";
@@ -24,11 +60,12 @@ export async function GET(request: Request) {
     const date_from = searchParams.get("date_from") || "";
     const date_to = searchParams.get("date_to") || "";
 
-    // 🌟 서버 사이드 페이징 파라미터
-    const limit = parseInt(searchParams.get("limit") || "10");
-    const offset = parseInt(searchParams.get("offset") || "0");
+    const limitParam = Number(searchParams.get("limit") || "10");
+    const offsetParam = Number(searchParams.get("offset") || "0");
 
-    // 종료일 포함 처리를 위한 다음날 계산 함수
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : 10;
+    const offset = Number.isFinite(offsetParam) && offsetParam >= 0 ? offsetParam : 0;
+
     const getNextDate = (dateStr: string) => {
       const date = new Date(`${dateStr}T00:00:00`);
       date.setDate(date.getDate() + 1);
@@ -40,17 +77,14 @@ export async function GET(request: Request) {
       return `${yyyy}-${mm}-${dd}`;
     };
 
-    // count: "exact"를 설정해야 전체 레코드 개수를 가져와서 페이지네이션 계산이 가능합니다.
     let query = supabase.from("customers").select("*", { count: "exact" });
 
-    // 통합 검색 (업체명, 고객명, 휴대폰)
     if (search) {
       query = query.or(
         `customer_name.ilike.%${search}%,company_name.ilike.%${search}%,mobile_phone.ilike.%${search}%`
       );
     }
 
-    // 담당 TM 필터
     if (tm_id === "unassigned") {
       query = query.is("tm_id", null);
     } else if (tm_id === "assigned") {
@@ -59,7 +93,6 @@ export async function GET(request: Request) {
       query = query.eq("tm_id", tm_id);
     }
 
-    // 영업 담당 필터
     if (sales_id === "unassigned") {
       query = query.is("sales_id", null);
     } else if (sales_id === "assigned") {
@@ -68,7 +101,6 @@ export async function GET(request: Request) {
       query = query.eq("sales_id", sales_id);
     }
 
-    // 상담 및 영업 상태 필터
     if (consult_status !== "all" && consult_status !== "") {
       query = query.eq("consult_status", consult_status);
     }
@@ -77,10 +109,6 @@ export async function GET(request: Request) {
       query = query.eq("sales_status", sales_status);
     }
 
-    // 기간 필터 (영업일 vs 상담일 구분)
-    // - 영업일 → sales_date 기준 조회
-    // - 상담일 → consult_date 기준 조회
-    // - 종료일은 해당 날짜 전체를 포함하기 위해 다음날 00:00:00 미만으로 조회
     const dateColumn = date_type === "상담일" ? "consult_date" : "sales_date";
 
     if (date_from) {
@@ -92,14 +120,12 @@ export async function GET(request: Request) {
       query = query.lt(dateColumn, nextDate);
     }
 
-    // 🌟 정렬 및 페이징 범위 적용
     const { data, error, count } = await query
       .order(dateColumn, { ascending: false, nullsFirst: false })
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
-    // 🌟 프론트엔드가 페이징 처리를 할 수 있도록 데이터와 전체 개수를 객체로 반환
     return NextResponse.json({
       data: data || [],
       totalCount: count || 0,
@@ -110,20 +136,10 @@ export async function GET(request: Request) {
   }
 }
 
-/**
- * 2. 신규 고객 등록 (POST)
- */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-
-    const payload = {
-      ...body,
-      consult_status:
-        body.consult_status && body.consult_status.trim() !== ""
-          ? body.consult_status
-          : "대기",
-    };
+    const payload = buildCreatePayload(body);
 
     const { data, error } = await supabase
       .from("customers")
@@ -132,26 +148,32 @@ export async function POST(request: Request) {
 
     if (error) throw error;
 
-    return NextResponse.json(data[0]);
+    return NextResponse.json(data?.[0] || null);
   } catch (error: any) {
+    console.error("고객 등록 오류:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-/**
- * 3. 일괄 담당자 배정 (PATCH)
- */
 export async function PATCH(request: Request) {
   try {
     const { ids, type, assignee_id } = await request.json();
-    const column = type === "TM" ? "tm_id" : "sales_id";
 
-    if (!ids || ids.length === 0) {
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return NextResponse.json(
         { error: "선택된 고객이 없습니다." },
         { status: 400 }
       );
     }
+
+    if (type !== "TM" && type !== "SALES") {
+      return NextResponse.json(
+        { error: "배정 유형이 올바르지 않습니다." },
+        { status: 400 }
+      );
+    }
+
+    const column = type === "TM" ? "tm_id" : "sales_id";
 
     const updateValue =
       assignee_id === "" || assignee_id === "all" || assignee_id === "unassigned"
@@ -167,13 +189,11 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    console.error("일괄 배정 오류:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-/**
- * 4. 일괄 삭제 (DELETE)
- */
 export async function DELETE(request: Request) {
   try {
     const body = await request.json();
@@ -186,10 +206,7 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const { error } = await supabase
-      .from("customers")
-      .delete()
-      .in("id", ids);
+    const { error } = await supabase.from("customers").delete().in("id", ids);
 
     if (error) throw error;
 
@@ -198,6 +215,7 @@ export async function DELETE(request: Request) {
       message: `${ids.length}건의 고객 정보가 삭제되었습니다.`,
     });
   } catch (error: any) {
+    console.error("일괄 삭제 오류:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

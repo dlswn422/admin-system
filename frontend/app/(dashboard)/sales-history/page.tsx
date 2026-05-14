@@ -9,19 +9,13 @@ import {
   ChevronRight,
   Layers,
   Sparkles,
-  Wallet,
   UserCheck,
   Filter,
   Users,
   BriefcaseBusiness,
-  Building2,
-  User as UserIcon,
-  Phone,
-  MapPin,
-  FileAudio,
-  ExternalLink,
   TrendingUp,
   Award,
+  UserPlus,
 } from "lucide-react";
 
 // --- Interfaces ---
@@ -43,6 +37,7 @@ interface Customer {
   sales_status: string;
   sales_memo: string;
   sales_commission: number;
+  referral_yn: string;
 }
 
 interface UserInfo {
@@ -104,9 +99,13 @@ export default function SalesManagementPage() {
   const [recordings, setRecordings] = useState<RecordingItem[]>([]);
   const [isRecordingsLoading, setIsRecordingsLoading] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const currentRole = currentUser?.role_name || (currentUser as any)?.role;
   const isAdmin = currentRole === "관리자";
+  const isCreateMode = !selectedCustomer;
+
+  const today = () => new Date().toISOString().split("T")[0];
 
   const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
@@ -180,27 +179,11 @@ export default function SalesManagementPage() {
     if (currentUser) fetchData();
   }, [filters.date_from, filters.date_to, filters.search, filters.sales_id, filters.sales_status]);
 
-  const openModal = async (customer: Customer) => {
-    setSelectedCustomer(customer);
-
-    // 날짜 포맷팅 (YYYY-MM-DD)
-    let formattedDate = customer.sales_date ? customer.sales_date.split("T")[0] : "";
-    
-    // 만약 영업일자가 비어있다면 오늘 날짜로 세팅
-    if (!formattedDate) {
-      formattedDate = new Date().toISOString().split("T")[0];
-    }
-
-    setFormData({
-      ...customer,
-      sales_date: formattedDate,
-    });
-
-    setIsModalOpen(true);
+  const fetchRecordings = async (customerId: string) => {
     setIsRecordingsLoading(true);
 
     try {
-      const res = await fetch(`/api/recordings/upload?customer_id=${customer.id}`);
+      const res = await fetch(`/api/recordings/upload?customer_id=${customerId}`);
       const data = await res.json();
       setRecordings(Array.isArray(data) ? data : []);
     } catch {
@@ -210,36 +193,129 @@ export default function SalesManagementPage() {
     }
   };
 
+  const openCreateModal = () => {
+    if (!currentUser) return;
+
+    setSelectedCustomer(null);
+    setRecordings([]);
+    setFormData({
+      company_name: "",
+      customer_name: "",
+      mobile_phone: "",
+      landline_phone: "",
+      address: "",
+      note: "",
+      receipt_date: today(),
+      tm_id: "",
+      consult_date: "",
+      consult_status: "",
+      consult_memo: "",
+      sales_id: isAdmin ? "" : String(currentUser.id),
+      sales_date: today(),
+      sales_status: "",
+      sales_memo: "",
+      sales_commission: 0,
+      referral_yn: "N",
+    });
+    setIsModalOpen(true);
+  };
+
+  const openModal = async (customer: Customer) => {
+    setSelectedCustomer(customer);
+
+    // 날짜 포맷팅 (YYYY-MM-DD)
+    let formattedDate = customer.sales_date ? customer.sales_date.split("T")[0] : "";
+
+    // 만약 영업일자가 비어있다면 오늘 날짜로 세팅
+    if (!formattedDate) {
+      formattedDate = today();
+    }
+
+    setFormData({
+      ...customer,
+      sales_date: formattedDate,
+      referral_yn: customer.referral_yn || "N",
+    });
+
+    setIsModalOpen(true);
+    await fetchRecordings(customer.id);
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCustomer) return;
+    if (!currentUser || isSaving) return;
 
-    // 관리자가 아닌 경우, 기존 정산 수당 값 유지
-    const submissionData = {
-      ...formData,
-      sales_date: formData.sales_date || null,
-      sales_commission: isAdmin
-        ? Number(formData.sales_commission || 0)
-        : selectedCustomer.sales_commission,
-    };
+    const companyName = String(formData.company_name || "").trim();
+    if (!companyName) {
+      showToast("업체명을 입력해주세요.", "error");
+      return;
+    }
+
+    // if (!String(formData.sales_id || "").trim()) {
+    //   showToast("영업자를 선택해주세요.", "error");
+    //   return;
+    // }
 
     try {
-      const res = await fetch(`/api/customers/${selectedCustomer.id}`, {
-        method: "PATCH",
+      setIsSaving(true);
+
+      if (selectedCustomer) {
+        // 관리자가 아닌 경우, 기존 정산 수당 값 유지
+        const submissionData = {
+          ...formData,
+          company_name: companyName,
+          sales_date: formData.sales_date || null,
+          sales_commission: isAdmin
+            ? Number(formData.sales_commission || 0)
+            : selectedCustomer.sales_commission,
+          referral_yn: formData.referral_yn || "N",
+        };
+
+        const res = await fetch(`/api/customers/${selectedCustomer.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(submissionData),
+        });
+
+        if (res.ok) {
+          setIsModalOpen(false);
+          showToast("영업 실적이 반영되었습니다.", "success");
+          await fetchData();
+        } else {
+          const err = await res.json().catch(() => null);
+          showToast(err?.error || "반영 실패", "error");
+        }
+
+        return;
+      }
+
+      const createData = {
+        ...formData,
+        company_name: companyName,
+        sales_id: String(formData.sales_id || currentUser.id),
+        sales_date: formData.sales_date || today(),
+        sales_commission: isAdmin ? Number(formData.sales_commission || 0) : 0,
+        referral_yn: formData.referral_yn || "N",
+      };
+
+      const res = await fetch("/api/customers", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(submissionData),
+        body: JSON.stringify(createData),
       });
 
       if (res.ok) {
         setIsModalOpen(false);
-        showToast("영업 실적이 반영되었습니다.", "success");
-        fetchData();
+        showToast("신규 영업 고객이 추가되었습니다.", "success");
+        await fetchData();
       } else {
-        const err = await res.json();
-        showToast(err.error || "반영 실패", "error");
+        const err = await res.json().catch(() => null);
+        showToast(err?.error || "추가 실패", "error");
       }
     } catch {
       showToast("네트워크 오류가 발생했습니다.", "error");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -307,18 +383,29 @@ export default function SalesManagementPage() {
               <p className="text-slate-400 text-[15px]">영업 활동 내역 및 수당 정산 현황을 실시간으로 관리합니다.</p>
             </div>
 
-            <button
-              onClick={() => fetchData()}
-              className="h-14 w-14 flex items-center justify-center rounded-2xl bg-white/5 text-slate-400 hover:text-white transition-all shadow-inner"
-            >
-              <RotateCw className={`h-6 w-6 ${isLoading ? "animate-spin" : ""}`} />
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={openCreateModal}
+                className="h-14 flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-black text-white hover:bg-blue-500 transition-all shadow-lg"
+                type="button"
+              >
+                <UserPlus className="h-5 w-5" /> 고객 추가
+              </button>
+
+              <button
+                onClick={() => fetchData()}
+                className="h-14 w-14 flex items-center justify-center rounded-2xl bg-white/5 text-slate-400 hover:text-white transition-all shadow-inner"
+                type="button"
+              >
+                <RotateCw className={`h-6 w-6 ${isLoading ? "animate-spin" : ""}`} />
+              </button>
+            </div>
           </div>
         </div>
       </section>
 
       {/* 통계 요약 카드 */}
-      <section className="grid gap-4 md:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-3">
         {[
           { label: "담당 고객", value: stats.total, icon: Users, color: "text-blue-600 bg-blue-50" },
           { label: "계약 성공", value: stats.completed, icon: UserCheck, color: "text-emerald-600 bg-emerald-50" },
@@ -337,6 +424,7 @@ export default function SalesManagementPage() {
         <button
           onClick={() => setIsRankModalOpen(true)}
           className="flex items-center justify-between rounded-[28px] border border-rose-100 bg-rose-50/30 p-8 shadow-sm hover:bg-rose-50 transition-all group"
+          type="button"
         >
           <div className="text-left">
             <p className="text-xs font-black text-rose-400 uppercase tracking-widest">매출 성과</p>
@@ -427,6 +515,7 @@ export default function SalesManagementPage() {
               })
             }
             className="h-14 px-8 border-2 border-slate-200 rounded-2xl font-bold text-slate-400 hover:bg-slate-50 transition-all"
+            type="button"
           >
             필터 초기화
           </button>
@@ -440,12 +529,13 @@ export default function SalesManagementPage() {
       {/* 데이터 테이블 리스트 */}
       <section className="rounded-[30px] border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="p-4 md:p-8 overflow-x-auto">
-          <div className="min-w-[1400px] space-y-3">
-            <div className="grid grid-cols-[130px_180px_110px_140px_120px_110px_110px_minmax(200px,1fr)_110px] gap-6 px-8 py-3 text-[11px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
+          <div className="min-w-[1500px] space-y-3">
+            <div className="grid grid-cols-[130px_180px_110px_140px_90px_120px_110px_110px_minmax(200px,1fr)_110px] gap-6 px-8 py-3 text-[11px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
               <span className="text-center">영업일자</span>
               <span>업체명</span>
               <span className="text-center">대표자</span>
               <span className="text-center">연락처</span>
+              <span className="text-center">소개건</span>
               <span className="text-center">영업자</span>
               <span className="text-center">영업상태</span>
               <span className="text-center">상담상태</span>
@@ -462,7 +552,7 @@ export default function SalesManagementPage() {
                 <div
                   key={c.id}
                   onClick={() => openModal(c)}
-                  className="group grid grid-cols-[130px_180px_110px_140px_120px_110px_110px_minmax(200px,1fr)_110px] items-center gap-6 rounded-[24px] border border-slate-50 bg-white p-5 cursor-pointer hover:border-blue-200 hover:shadow-md transition-all"
+                  className="group grid grid-cols-[130px_180px_110px_140px_90px_120px_110px_110px_minmax(200px,1fr)_110px] items-center gap-6 rounded-[24px] border border-slate-50 bg-white p-5 cursor-pointer hover:border-blue-200 hover:shadow-md transition-all"
                 >
                   <div className="text-center text-sm font-black text-slate-500">
                     {c.sales_date?.split("T")[0] || "-"}
@@ -475,6 +565,15 @@ export default function SalesManagementPage() {
                   </div>
                   <div className="text-center text-sm font-medium text-slate-500">
                     {c.mobile_phone || "-"}
+                  </div>
+                  <div className="flex justify-center">
+                    <span className={`px-3 py-1.5 rounded-full border text-[10px] font-black ${
+                      (c.referral_yn || "N") === "Y"
+                        ? "bg-amber-50 text-amber-600 border-amber-100"
+                        : "bg-slate-50 text-slate-400 border-slate-100"
+                    }`}>
+                      {(c.referral_yn || "N") === "Y" ? "소개" : "일반"}
+                    </span>
                   </div>
                   <div className="text-center text-sm font-black text-blue-600">
                     {users.find(u => u.id === c.sales_id)?.name || "미배정"}
@@ -511,6 +610,7 @@ export default function SalesManagementPage() {
               disabled={currentPage === 1}
               onClick={() => setCurrentPage(p => p - 1)}
               className="p-3 rounded-xl border-2 border-slate-100 bg-white disabled:opacity-20 hover:bg-slate-50 transition-all"
+              type="button"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
@@ -523,6 +623,7 @@ export default function SalesManagementPage() {
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage(p => p + 1)}
               className="p-3 rounded-xl border-2 border-slate-100 bg-white disabled:opacity-20 hover:bg-slate-50 transition-all"
+              type="button"
             >
               <ChevronRight className="h-5 w-5" />
             </button>
@@ -538,16 +639,17 @@ export default function SalesManagementPage() {
               <div className="flex justify-between items-start mb-10 border-b border-slate-100 pb-10">
                 <div className="space-y-3">
                   <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-1.5 text-[10px] font-black text-blue-600 border border-blue-100 uppercase tracking-widest">
-                    <BriefcaseBusiness className="h-4 w-4" /> 실적 업데이트 모드
+                    <BriefcaseBusiness className="h-4 w-4" /> {isCreateMode ? "신규 고객 추가 모드" : "실적 업데이트 모드"}
                   </div>
                   <h2 className="text-4xl font-black text-slate-900">
-                    {selectedCustomer?.company_name}
+                    {isCreateMode ? "신규 영업 고객 추가" : selectedCustomer?.company_name}
                   </h2>
                 </div>
 
                 <button
                   onClick={() => setIsModalOpen(false)}
                   className="p-4 hover:bg-slate-100 rounded-full text-slate-400 transition-all"
+                  type="button"
                 >
                   <X className="h-6 w-6" />
                 </button>
@@ -562,14 +664,14 @@ export default function SalesManagementPage() {
 
                   <div className="grid gap-5 md:grid-cols-3">
                     {[
-                      { label: "업체명", field: "company_name" },
-                      { label: "대표자명", field: "customer_name" },
-                      { label: "핸드폰 번호", field: "mobile_phone" },
-                      { label: "유선 번호", field: "landline_phone" },
+                      { label: "업체명", field: "company_name", required: true },
+                      { label: "대표자명", field: "customer_name", required: false },
+                      { label: "핸드폰 번호", field: "mobile_phone", required: false },
+                      { label: "유선 번호", field: "landline_phone", required: false },
                     ].map(item => (
                       <div key={item.field} className="space-y-2">
                         <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                          {item.label}
+                          {item.label} {item.required && <span className="text-rose-500">*</span>}
                         </label>
                         <input
                           value={(formData as any)[item.field] || ""}
@@ -583,6 +685,25 @@ export default function SalesManagementPage() {
                         />
                       </div>
                     ))}
+
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                        소개건 여부
+                      </label>
+                      <select
+                        value={formData.referral_yn || "N"}
+                        onChange={e =>
+                          setFormData({
+                            ...formData,
+                            referral_yn: e.target.value,
+                          })
+                        }
+                        className="h-14 w-full rounded-2xl border-2 border-amber-100 bg-amber-50/30 px-6 font-black text-slate-900 outline-none focus:border-amber-400 shadow-sm"
+                      >
+                        <option value="N">일반건</option>
+                        <option value="Y">소개건</option>
+                      </select>
+                    </div>
 
                     <div className="md:col-span-3 space-y-2">
                       <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
@@ -667,6 +788,36 @@ export default function SalesManagementPage() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-[11px] font-black text-slate-400 uppercase ml-1">
+                            영업자 <span className="text-rose-500">*</span>
+                          </label>
+                          <select
+                            disabled={!isAdmin}
+                            value={formData.sales_id || ""}
+                            onChange={e =>
+                              setFormData({
+                                ...formData,
+                                sales_id: e.target.value,
+                              })
+                            }
+                            className="h-14 w-full rounded-2xl border-2 border-emerald-200 bg-white px-6 font-black text-slate-900 outline-none focus:ring-4 ring-emerald-500/10 disabled:bg-slate-50 disabled:text-slate-500 transition-all"
+                          >
+                            {isAdmin ? (
+                              <>
+                                <option value="">영업자 선택</option>
+                                {users
+                                  .filter(u => u.role_name === "영업")
+                                  .map(u => (
+                                    <option key={u.id} value={u.id}>{u.name}</option>
+                                  ))}
+                              </>
+                            ) : (
+                              <option value={currentUser.id}>{currentUser.name}</option>
+                            )}
+                          </select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-black text-slate-400 uppercase ml-1">
                             영업 진행 상태 <span className="text-rose-500">*</span>
                           </label>
                           <select
@@ -688,7 +839,7 @@ export default function SalesManagementPage() {
                           </select>
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="space-y-2 col-span-2">
                           <label className="text-[11px] font-black text-slate-400 uppercase ml-1">
                             영업 실행 일자 <span className="text-rose-500">*</span>
                           </label>
@@ -766,16 +917,19 @@ export default function SalesManagementPage() {
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="h-18 flex-1 rounded-[22px] border-2 border-slate-200 font-black text-slate-400 hover:bg-slate-50 transition-all text-lg shadow-sm"
+                    disabled={isSaving}
+                    className="h-18 flex-1 rounded-[22px] border-2 border-slate-200 font-black text-slate-400 hover:bg-slate-50 transition-all text-lg shadow-sm disabled:opacity-50"
                   >
                     창 닫기
                   </button>
 
                   <button
                     type="submit"
-                    className="h-18 flex-[2.5] rounded-[22px] bg-[#1e232d] font-black text-white shadow-2xl hover:bg-black transition-all text-lg flex items-center justify-center gap-3"
+                    disabled={isSaving || !String(formData.company_name || "").trim()}
+                    className="h-18 flex-[2.5] rounded-[22px] bg-[#1e232d] font-black text-white shadow-2xl hover:bg-black transition-all text-lg flex items-center justify-center gap-3 disabled:opacity-50"
                   >
-                    영업 실적 업데이트 저장하기 <ChevronRight className="h-5 w-5" />
+                    {isSaving ? "저장 중..." : isCreateMode ? "신규 영업 고객 추가하기" : "영업 실적 업데이트 저장하기"}
+                    {!isSaving && <ChevronRight className="h-5 w-5" />}
                   </button>
                 </div>
               </form>
@@ -799,6 +953,7 @@ export default function SalesManagementPage() {
               <button
                 onClick={() => setIsRankModalOpen(false)}
                 className="p-3 hover:bg-slate-100 rounded-full text-slate-400 transition-all"
+                type="button"
               >
                 <X />
               </button>
@@ -848,6 +1003,7 @@ export default function SalesManagementPage() {
             <button
               onClick={() => setIsRankModalOpen(false)}
               className="w-full h-16 mt-10 bg-[#1e232d] text-white font-black rounded-2xl hover:bg-black transition-all shadow-xl"
+              type="button"
             >
               실적 창 닫기
             </button>

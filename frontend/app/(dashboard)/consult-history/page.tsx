@@ -17,6 +17,7 @@ import {
   Trash2,
   Clock,
   MapPin,
+  UserPlus,
 } from "lucide-react";
 
 // --- Interfaces ---
@@ -91,9 +92,7 @@ export default function ConsultationPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
-    null
-  );
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState<Partial<Customer>>({});
   const [toast, setToast] = useState<Toast | null>(null);
 
@@ -103,8 +102,11 @@ export default function ConsultationPage() {
     useState(false);
 
   const [recordings, setRecordings] = useState<RecordingItem[]>([]);
+  const [pendingRecordingFile, setPendingRecordingFile] = useState<File | null>(null);
   const [isRecordingsLoading, setIsRecordingsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeletingRecording, setIsDeletingRecording] = useState(false);
 
   const recordingInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -112,6 +114,22 @@ export default function ConsultationPage() {
     String(i).padStart(2, "0")
   );
   const minutesList = ["00", "10", "20", "30", "40", "50"];
+
+  const isCreateMode = !selectedCustomer;
+  const isAdmin = (currentUser?.role_name || (currentUser as any)?.role) === "관리자";
+  const isModalBusy = isSaving || isUploading || isDeletingRecording;
+
+  const modalLoadingMessage = isSaving
+    ? isCreateMode
+      ? pendingRecordingFile
+        ? "고객 정보와 녹취 파일을 저장하는 중입니다..."
+        : "신규 고객을 저장하는 중입니다..."
+      : "변경 내용을 저장하는 중입니다..."
+    : isUploading
+    ? "녹취 파일을 업로드하는 중입니다..."
+    : isDeletingRecording
+    ? "녹취 파일을 삭제하는 중입니다..."
+    : "처리 중입니다...";
 
   const getTodayDateString = () => {
     const today = new Date();
@@ -121,6 +139,8 @@ export default function ConsultationPage() {
     return `${yyyy}-${mm}-${dd}`;
   };
 
+  const getDefaultConsultDate = () => `${getTodayDateString()} 09:00:00`;
+
   const showToast = useCallback(
     (message: string, type: "success" | "error" = "success") => {
       setToast({ message, type });
@@ -129,7 +149,7 @@ export default function ConsultationPage() {
     []
   );
 
-  // --- Data Fetching (원본 로직 완벽 보존) ---
+  // --- Data Fetching (원본 로직 보존) ---
   const fetchData = useCallback(
     async (userOverride?: UserData) => {
       const activeUser = userOverride || currentUser;
@@ -181,11 +201,12 @@ export default function ConsultationPage() {
         );
       } catch (e) {
         console.error("데이터 로드 에러:", e);
+        showToast("데이터 로드 실패", "error");
       } finally {
         setIsLoading(false);
       }
     },
-    [filters, currentUser, currentPage, itemsPerPage]
+    [filters, currentUser, currentPage, itemsPerPage, showToast]
   );
 
   useEffect(() => {
@@ -218,6 +239,7 @@ export default function ConsultationPage() {
     currentPage,
     itemsPerPage,
     fetchData,
+    currentUser,
   ]);
 
   const fetchRecordings = async (customerId: string) => {
@@ -233,51 +255,199 @@ export default function ConsultationPage() {
     }
   };
 
+  const uploadRecordingFile = async (file: File, customerId: string) => {
+    const body = new FormData();
+    body.append("file", file);
+    body.append("customer_id", customerId);
+
+    const res = await fetch("/api/recordings/upload", {
+      method: "POST",
+      body,
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(data?.error || "녹취 파일 업로드 실패");
+    }
+
+    return data;
+  };
+
   const confirmDeleteRecording = async () => {
     if (!recordingDeleteTarget) return;
+
     try {
+      setIsDeletingRecording(true);
       const res = await fetch(`/api/recordings/upload`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: recordingDeleteTarget.id }),
       });
-      if (res.ok) {
-        showToast("삭제되었습니다.");
-        setIsRecordingDeleteModalOpen(false);
-        if (selectedCustomer) await fetchRecordings(selectedCustomer.id);
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || "삭제 실패");
       }
-    } catch {
-      showToast("삭제 실패", "error");
+
+      showToast("삭제되었습니다.");
+      setIsRecordingDeleteModalOpen(false);
+      setRecordingDeleteTarget(null);
+      if (selectedCustomer) await fetchRecordings(selectedCustomer.id);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "삭제 실패", "error");
+    } finally {
+      setIsDeletingRecording(false);
     }
   };
 
   const openModal = async (customer: Customer) => {
     setSelectedCustomer(customer);
-
-    const today = getTodayDateString();
+    setPendingRecordingFile(null);
 
     const baseDate =
       customer.consult_date && String(customer.consult_date).trim() !== ""
         ? customer.consult_date.replace("T", " ")
-        : `${today} 09:00:00`;
+        : getDefaultConsultDate();
 
     setFormData({ ...customer, consult_date: baseDate });
+    setRecordings([]);
     setIsModalOpen(true);
     await fetchRecordings(customer.id);
   };
 
+  const openCreateModal = () => {
+    if (!currentUser) return;
+
+    setSelectedCustomer(null);
+    setRecordings([]);
+    setPendingRecordingFile(null);
+    setFormData({
+      customer_name: "",
+      company_name: "",
+      mobile_phone: "",
+      landline_phone: "",
+      address: "",
+      note: "",
+      receipt_date: getTodayDateString(),
+      tm_id: isAdmin ? "" : String(currentUser.id),
+      consult_date: getDefaultConsultDate(),
+      consult_status: filters.consult_status !== "all" ? filters.consult_status : "대기",
+      consult_memo: "",
+    });
+    setIsModalOpen(true);
+  };
+
+  const extractCreatedCustomerId = (data: any) => {
+    return (
+      data?.id ||
+      data?.data?.id ||
+      data?.customer?.id ||
+      data?.data?.[0]?.id ||
+      data?.[0]?.id ||
+      null
+    );
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCustomer) return;
-    const res = await fetch(`/api/customers/${selectedCustomer.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
-    });
-    if (res.ok) {
+    if (!currentUser || isSaving) return;
+
+    const companyName = String(formData.company_name || "").trim();
+    if (!companyName) {
+      showToast("업체명을 입력해주세요.", "error");
+      return;
+    }
+
+    if (!selectedCustomer && !String(formData.tm_id || "").trim()) {
+      showToast("상담사를 선택해주세요.", "error");
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+
+      if (selectedCustomer) {
+        const res = await fetch(`/api/customers/${selectedCustomer.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...formData,
+            company_name: companyName,
+          }),
+        });
+
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(data?.error || "저장 실패");
+        }
+
+        setIsModalOpen(false);
+        showToast("정보가 저장되었습니다.");
+        await fetchData();
+        return;
+      }
+
+      const createPayload = {
+        ...formData,
+        company_name: companyName,
+        tm_id: String(formData.tm_id || currentUser.id), // 신규 등록 시 관리자 선택값 또는 상담원 본인으로 배정
+        receipt_date: formData.receipt_date || getTodayDateString(),
+        consult_date: formData.consult_date || getDefaultConsultDate(),
+        consult_status: formData.consult_status || "대기",
+      };
+
+      const createRes = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(createPayload),
+      });
+
+      const createData = await createRes.json().catch(() => null);
+      if (!createRes.ok) {
+        throw new Error(createData?.error || "신규 고객 저장 실패");
+      }
+
+      const createdCustomerId = extractCreatedCustomerId(createData);
+
+      if (pendingRecordingFile) {
+        if (!createdCustomerId) {
+          throw new Error("고객은 저장되었지만 고객 ID를 확인하지 못해 녹취 파일은 업로드하지 못했습니다.");
+        }
+        await uploadRecordingFile(pendingRecordingFile, String(createdCustomerId));
+      }
+
       setIsModalOpen(false);
-      showToast("정보가 저장되었습니다.");
-      fetchData();
+      setPendingRecordingFile(null);
+      if (recordingInputRef.current) recordingInputRef.current.value = "";
+      showToast(pendingRecordingFile ? "신규 고객과 녹취 파일이 저장되었습니다." : "신규 고객이 저장되었습니다.");
+      await fetchData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "저장 실패", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRecordingInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!selectedCustomer) {
+      setPendingRecordingFile(file);
+      showToast("녹취 파일이 선택되었습니다. 저장 시 함께 업로드됩니다.");
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      await uploadRecordingFile(file, selectedCustomer.id);
+      await fetchRecordings(selectedCustomer.id);
+      showToast("업로드 성공");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "업로드 실패", "error");
+    } finally {
+      setIsUploading(false);
+      if (recordingInputRef.current) recordingInputRef.current.value = "";
     }
   };
 
@@ -305,24 +475,7 @@ export default function ConsultationPage() {
         ref={recordingInputRef}
         type="file"
         className="hidden"
-        onChange={async (e) => {
-          const file = e.target.files?.[0];
-          if (file && selectedCustomer) {
-            setIsUploading(true);
-            const body = new FormData();
-            body.append("file", file);
-            body.append("customer_id", selectedCustomer.id);
-            const res = await fetch("/api/recordings/upload", {
-              method: "POST",
-              body,
-            });
-            if (res.ok) {
-              fetchRecordings(selectedCustomer.id);
-              showToast("업로드 성공");
-            }
-            setIsUploading(false);
-          }
-        }}
+        onChange={handleRecordingInputChange}
       />
 
       {toast && (
@@ -349,12 +502,23 @@ export default function ConsultationPage() {
                 상담 관리
               </h1>
             </div>
-            <button
-              onClick={() => fetchData()}
-              className="h-12 w-12 flex items-center justify-center rounded-2xl bg-white/10 text-white hover:bg-white/20"
-            >
-              <RotateCw className={isLoading ? "animate-spin" : ""} />
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={openCreateModal}
+                className="inline-flex h-12 items-center gap-2 rounded-2xl bg-blue-600 px-5 text-xs font-black text-white shadow-lg transition-all hover:bg-blue-500"
+                type="button"
+              >
+                <UserPlus className="h-4 w-4" />
+                고객 추가
+              </button>
+              <button
+                onClick={() => fetchData()}
+                className="h-12 w-12 flex items-center justify-center rounded-2xl bg-white/10 text-white hover:bg-white/20"
+                type="button"
+              >
+                <RotateCw className={isLoading ? "animate-spin" : ""} />
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -444,12 +608,12 @@ export default function ConsultationPage() {
           <button
             onClick={handleResetFilters}
             className="h-12 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-500"
+            type="button"
           >
             초기화
           </button>
           <div className="hidden md:flex h-12 items-center px-6 rounded-full bg-slate-900 text-xs font-bold text-white shadow-lg">
-            <Sparkles className="h-3.5 w-3.5 text-blue-400 mr-2" />{" "}
-            {totalCount}건
+            <Sparkles className="h-3.5 w-3.5 text-blue-400 mr-2" /> {totalCount}건
           </div>
         </div>
       </section>
@@ -554,8 +718,7 @@ export default function ConsultationPage() {
                     </span>
                   </div>
                   <div className="flex gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-tighter">
-                    <span>{c.customer_name}</span> |{" "}
-                    <span>{c.mobile_phone}</span>
+                    <span>{c.customer_name}</span> | <span>{c.mobile_phone}</span>
                   </div>
                   <div className="text-[10px] font-black text-blue-500">
                     {c.consult_date?.replace("T", " ")}
@@ -576,7 +739,8 @@ export default function ConsultationPage() {
             <button
               disabled={currentPage === 1}
               onClick={() => setCurrentPage((p) => p - 1)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-40"
+              type="button"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
@@ -586,7 +750,8 @@ export default function ConsultationPage() {
             <button
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage((p) => p + 1)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-40"
+              type="button"
             >
               <ChevronRight className="h-5 w-5" />
             </button>
@@ -594,10 +759,28 @@ export default function ConsultationPage() {
         </div>
       </section>
 
-      {/* --- Detail Modal --- */}
+      {/* --- Detail/Create Modal --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[10000] flex items-end md:items-center justify-center bg-slate-950/60 p-0 md:p-4 backdrop-blur-sm">
           <div className="relative flex h-[94vh] md:h-auto md:max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[40px] md:rounded-[40px] bg-white shadow-2xl text-slate-900">
+            {isModalBusy && (
+              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm">
+                <div className="flex flex-col items-center rounded-[28px] border border-slate-200 bg-white/95 px-10 py-8 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+                  <div className="relative flex h-20 w-20 items-center justify-center">
+                    <div className="absolute inset-0 rounded-full border-4 border-slate-200" />
+                    <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-blue-600 border-r-violet-500" />
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-600 to-violet-500 shadow-lg" />
+                  </div>
+                  <div className="mt-6 text-lg font-black tracking-[-0.03em] text-slate-900">
+                    처리 중
+                  </div>
+                  <div className="mt-2 text-center text-sm font-semibold text-slate-500">
+                    {modalLoadingMessage}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-3">
               <div className="flex items-center gap-2">
@@ -605,12 +788,14 @@ export default function ConsultationPage() {
                   <UserCheck className="h-4 w-4" />
                 </div>
                 <h2 className="text-base font-black tracking-tight">
-                  상담 상세 설정
+                  {isCreateMode ? "신규 고객 등록" : "상담 상세 설정"}
                 </h2>
               </div>
               <button
-                onClick={() => setIsModalOpen(false)}
-                className="h-9 w-9 flex items-center justify-center rounded-full bg-slate-100 text-slate-400"
+                onClick={() => !isModalBusy && setIsModalOpen(false)}
+                disabled={isModalBusy}
+                className="h-9 w-9 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 disabled:opacity-50"
+                type="button"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -620,10 +805,51 @@ export default function ConsultationPage() {
               onSubmit={handleSave}
               className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-hide"
             >
+              {isCreateMode && (
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-[11px] font-bold text-blue-700">
+                  {isAdmin ? "관리자는 신규 고객을 등록할 상담사를 선택해야 합니다." : <>신규 등록 시 상담사는 현재 로그인 사용자 <span className="font-black">{currentUser.name}</span>님으로 자동 배정됩니다.</>}
+                </div>
+              )}
+
+              {isCreateMode && (
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 ml-1 uppercase">
+                    상담사 <span className="text-rose-500">*</span>
+                  </label>
+                  {isAdmin ? (
+                    <select
+                      value={formData.tm_id || ""}
+                      onChange={(e) =>
+                        setFormData((p) => ({
+                          ...p,
+                          tm_id: e.target.value,
+                        }))
+                      }
+                      className="h-10 w-full rounded-xl border-2 border-blue-100 bg-blue-50/30 px-4 text-xs font-black text-blue-700 focus:border-blue-500 outline-none"
+                    >
+                      <option value="">상담사 선택</option>
+                      {users
+                        .filter((u) => u.role_name === "TM")
+                        .map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}
+                          </option>
+                        ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={currentUser.name}
+                      disabled
+                      className="h-10 w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-4 text-xs font-black text-slate-500 outline-none"
+                    />
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3 text-slate-900">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 ml-1 uppercase">
-                    업체명
+                    업체명 <span className="text-rose-500">*</span>
                   </label>
                   <input
                     value={formData.company_name || ""}
@@ -822,13 +1048,32 @@ export default function ConsultationPage() {
                   <button
                     type="button"
                     onClick={() => recordingInputRef.current?.click()}
-                    className="flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black hover:bg-emerald-700 transition-all"
+                    disabled={isModalBusy}
+                    className="flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black hover:bg-emerald-700 disabled:opacity-50 transition-all"
                   >
                     <Upload className="h-3.5 w-3.5" /> 파일 추가
                   </button>
                 </div>
                 <div className="space-y-2 max-h-[80px] overflow-y-auto pr-1">
-                  {recordings.length === 0 ? (
+                  {isCreateMode && pendingRecordingFile ? (
+                    <div className="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-emerald-100 shadow-sm">
+                      <span className="text-[10px] font-bold text-slate-700 truncate flex-1 mr-2">
+                        {pendingRecordingFile.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPendingRecordingFile(null);
+                          if (recordingInputRef.current) recordingInputRef.current.value = "";
+                        }}
+                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : isRecordingsLoading ? (
+                    <div className="h-10 rounded-xl bg-white animate-pulse" />
+                  ) : recordings.length === 0 ? (
                     <div className="text-center py-2 text-[10px] font-bold text-slate-300">
                       첨부 파일 없음
                     </div>
@@ -865,21 +1110,28 @@ export default function ConsultationPage() {
                     ))
                   )}
                 </div>
+                {isCreateMode && pendingRecordingFile && (
+                  <p className="mt-2 text-[10px] font-bold text-emerald-700">
+                    신규 고객 저장 시 선택한 녹취 파일도 함께 업로드됩니다.
+                  </p>
+                )}
               </div>
 
               <div className="flex gap-3 pt-1 pb-4 bg-white">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="h-12 flex-1 rounded-2xl border-2 border-slate-200 font-black text-slate-400 text-xs"
+                  disabled={isModalBusy}
+                  className="h-12 flex-1 rounded-2xl border-2 border-slate-200 font-black text-slate-400 text-xs disabled:opacity-50"
                 >
                   닫기
                 </button>
                 <button
                   type="submit"
-                  className="h-12 flex-[2] rounded-2xl bg-slate-900 font-black text-white text-xs shadow-xl"
+                  disabled={isModalBusy || !String(formData.company_name || "").trim() || (isCreateMode && !String(formData.tm_id || "").trim())}
+                  className="h-12 flex-[2] rounded-2xl bg-slate-900 font-black text-white text-xs shadow-xl disabled:opacity-50"
                 >
-                  변경 내용 저장
+                  {isCreateMode ? "신규 고객 저장" : "변경 내용 저장"}
                 </button>
               </div>
             </form>
@@ -895,16 +1147,20 @@ export default function ConsultationPage() {
             <div className="mt-6 flex flex-col gap-2">
               <button
                 onClick={confirmDeleteRecording}
-                className="h-11 rounded-xl bg-rose-600 text-xs font-black text-white"
+                disabled={isDeletingRecording}
+                className="h-11 rounded-xl bg-rose-600 text-xs font-black text-white disabled:opacity-50"
+                type="button"
               >
-                삭제
+                {isDeletingRecording ? "삭제 중..." : "삭제"}
               </button>
               <button
                 onClick={() => {
                   setIsRecordingDeleteModalOpen(false);
                   setRecordingDeleteTarget(null);
                 }}
-                className="h-11 rounded-xl font-bold text-slate-400 text-xs"
+                disabled={isDeletingRecording}
+                className="h-11 rounded-xl font-bold text-slate-400 text-xs disabled:opacity-50"
+                type="button"
               >
                 취소
               </button>

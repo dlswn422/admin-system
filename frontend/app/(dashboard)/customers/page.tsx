@@ -1024,6 +1024,23 @@ export default function CustomersPage() {
                 <section className="rounded-[28px] border border-slate-200 bg-slate-50/70 p-6">
                   <div className="mb-5 flex items-center gap-2"><div className="h-7 w-1 rounded-full bg-emerald-500" /><h3 className="text-sm font-black tracking-[0.15em] text-slate-900">상담 정보</h3></div>
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <label className="space-y-2">
+                      <span className="text-sm font-bold text-slate-700">상담사</span>
+                      <select
+                        value={formData.tm_id || ""}
+                        onChange={(e) => setFormData({ ...formData, tm_id: e.target.value })}
+                        className="h-14 w-full rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 transition-all"
+                      >
+                        <option value="">미배정</option>
+                        {users
+                          .filter((u) => u.role_name === "TM")
+                          .map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
                     <div className="space-y-2 xl:col-span-1">
                       <span className="text-sm font-bold text-slate-700 flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> 상담일시 (날짜 / 시 / 분)</span>
                       <div className="flex gap-2">

@@ -193,11 +193,34 @@ export default function CustomersPage() {
     return `₩${Number(value || 0).toLocaleString()}`;
   }, []);
 
+  // 필터 변경 시 기존 페이지/선택값 때문에 조회 결과가 어긋나지 않도록 1페이지로 초기화합니다.
+  const updateFilter = useCallback((next: Partial<FilterState>) => {
+    setCurrentPage(1);
+    setSelectedIds([]);
+    setFilters((prev) => ({
+      ...prev,
+      ...next,
+    }));
+  }, []);
+
+  const resetFilters = useCallback(() => {
+    setCurrentPage(1);
+    setSelectedIds([]);
+    setFilters(INITIAL_FILTERS);
+  }, []);
+
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const query = new URLSearchParams({
+      const normalizedFilters = {
         ...filters,
+        search: filters.search.trim(),
+        consult_status: filters.consult_status.trim(),
+        sales_status: filters.sales_status.trim(),
+      };
+
+      const query = new URLSearchParams({
+        ...normalizedFilters,
         limit: itemsPerPage.toString(),
         offset: ((currentPage - 1) * itemsPerPage).toString(), // 🌟 서버 사이드 오프셋 계산
       }).toString();
@@ -664,6 +687,9 @@ export default function CustomersPage() {
       consult_date: normalizeDateValue(formData.consult_date),
       sales_date: normalizeDateValue(formData.sales_date),
 
+      consult_status: String(formData.consult_status || "").trim() || null,
+      sales_status: String(formData.sales_status || "").trim() || null,
+
       sales_commission: Number(formData.sales_commission || 0),
     };
 
@@ -847,17 +873,17 @@ export default function CustomersPage() {
         <div className="grid items-start gap-3 xl:grid-cols-[180px_minmax(0,1fr)_260px]">
           <div className="relative self-start">
             <Filter className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" />
-            <select value={filters.date_type} onChange={(e) => setFilters({ ...filters, date_type: e.target.value })} className="h-14 w-full appearance-none rounded-[20px] border border-slate-200/80 bg-slate-50/80 pl-12 pr-12 text-sm font-semibold text-slate-900 outline-none">
+            <select value={filters.date_type} onChange={(e) => updateFilter({ date_type: e.target.value })} className="h-14 w-full appearance-none rounded-[20px] border border-slate-200/80 bg-slate-50/80 pl-12 pr-12 text-sm font-semibold text-slate-900 outline-none">
               <option>영업일</option><option>상담일</option>
             </select>
           </div>
           <div className="grid items-start gap-3 md:grid-cols-[140px_auto_140px_minmax(0,1fr)]">
-            <input type="date" value={filters.date_from} onChange={(e) => setFilters({ ...filters, date_from: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 text-sm font-semibold text-slate-900 outline-none" />
+            <input type="date" value={filters.date_from} onChange={(e) => updateFilter({ date_from: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 text-sm font-semibold text-slate-900 outline-none" />
             <div className="flex h-14 items-center justify-center text-slate-300 font-black">~</div>
-            <input type="date" value={filters.date_to} onChange={(e) => setFilters({ ...filters, date_to: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 text-sm font-semibold text-slate-900 outline-none" />
+            <input type="date" value={filters.date_to} onChange={(e) => updateFilter({ date_to: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 text-sm font-semibold text-slate-900 outline-none" />
             <div className="relative self-start group">
               <Search className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" />
-              <input value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} placeholder="업체명, 대표자, 연락처 검색" className="h-14 w-full rounded-[20px] border border-slate-200/80 bg-slate-50/80 pl-12 pr-5 text-sm font-semibold text-slate-900 outline-none" />
+              <input value={filters.search} onChange={(e) => updateFilter({ search: e.target.value })} placeholder="업체명, 대표자, 연락처 검색" className="h-14 w-full rounded-[20px] border border-slate-200/80 bg-slate-50/80 pl-12 pr-5 text-sm font-semibold text-slate-900 outline-none" />
             </div>
           </div>
           <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-1">
@@ -878,27 +904,27 @@ export default function CustomersPage() {
           </div>
         </div>
         <div className="mt-3 grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1fr_auto_auto]">
-          <select value={filters.tm_id} onChange={(e) => setFilters({ ...filters, tm_id: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 text-sm font-semibold text-slate-900 outline-none">
+          <select value={filters.tm_id} onChange={(e) => updateFilter({ tm_id: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 text-sm font-semibold text-slate-900 outline-none">
             <option value="all">담당 TM 전체</option>
             <option value="assigned">배정 완료</option>
             <option value="unassigned">미배정</option>
             {users.filter((u) => u.role_name === "TM").map((u) => (<option key={u.id} value={u.id}>{u.name}</option>))}
           </select>
-          <select value={filters.consult_status} onChange={(e) => setFilters({ ...filters, consult_status: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 text-sm font-semibold text-slate-900 outline-none">
+          <select value={filters.consult_status} onChange={(e) => updateFilter({ consult_status: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 text-sm font-semibold text-slate-900 outline-none">
             <option value="all">상담 상태 전체</option>
             {consultCodes.map((c) => (<option key={c.code_value} value={c.code_name}>{c.code_name}</option>))}
           </select>
-          <select value={filters.sales_id} onChange={(e) => setFilters({ ...filters, sales_id: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 text-sm font-semibold text-slate-900 outline-none">
+          <select value={filters.sales_id} onChange={(e) => updateFilter({ sales_id: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 text-sm font-semibold text-slate-900 outline-none">
             <option value="all">영업자 전체</option>
             <option value="assigned">배정 완료</option>
             <option value="unassigned">미배정</option>
             {users.filter((u) => u.role_name === "영업").map((u) => (<option key={u.id} value={u.id}>{u.name}</option>))}
           </select>
-          <select value={filters.sales_status} onChange={(e) => setFilters({ ...filters, sales_status: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 text-sm font-semibold text-slate-900 outline-none">
+          <select value={filters.sales_status} onChange={(e) => updateFilter({ sales_status: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 text-sm font-semibold text-slate-900 outline-none">
             <option value="all">영업 상태 전체</option>
             {salesCodes.map((s) => (<option key={s.code_value} value={s.code_name}>{s.code_name}</option>))}
           </select>
-          <button type="button" onClick={() => setFilters(INITIAL_FILTERS)} className="h-14 rounded-[20px] border border-slate-200 bg-white px-5 text-sm font-bold text-slate-500">초기화</button>
+          <button type="button" onClick={resetFilters} className="h-14 rounded-[20px] border border-slate-200 bg-white px-5 text-sm font-bold text-slate-500">초기화</button>
           <div className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-slate-100 px-4 text-sm font-semibold text-slate-600">
             <Sparkles className="h-4 w-4" />
             {selectedCount > 0 ? `${selectedCount}건 선택됨` : resultSummary}

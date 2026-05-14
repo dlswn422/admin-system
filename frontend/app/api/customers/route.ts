@@ -24,9 +24,21 @@ export async function GET(request: Request) {
     const date_from = searchParams.get("date_from") || "";
     const date_to = searchParams.get("date_to") || "";
 
-    // 🌟 서버 사이드 페이징 파라미터 (기본값 설정)
+    // 🌟 서버 사이드 페이징 파라미터
     const limit = parseInt(searchParams.get("limit") || "10");
     const offset = parseInt(searchParams.get("offset") || "0");
+
+    // 종료일 포함 처리를 위한 다음날 계산 함수
+    const getNextDate = (dateStr: string) => {
+      const date = new Date(`${dateStr}T00:00:00`);
+      date.setDate(date.getDate() + 1);
+
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+
+      return `${yyyy}-${mm}-${dd}`;
+    };
 
     // count: "exact"를 설정해야 전체 레코드 개수를 가져와서 페이지네이션 계산이 가능합니다.
     let query = supabase.from("customers").select("*", { count: "exact" });
@@ -66,13 +78,19 @@ export async function GET(request: Request) {
     }
 
     // 기간 필터 (영업일 vs 상담일 구분)
-    // 프론트 조회 조건:
     // - 영업일 → sales_date 기준 조회
     // - 상담일 → consult_date 기준 조회
+    // - 종료일은 해당 날짜 전체를 포함하기 위해 다음날 00:00:00 미만으로 조회
     const dateColumn = date_type === "상담일" ? "consult_date" : "sales_date";
 
-    if (date_from) query = query.gte(dateColumn, date_from);
-    if (date_to) query = query.lte(dateColumn, date_to);
+    if (date_from) {
+      query = query.gte(dateColumn, `${date_from} 00:00:00`);
+    }
+
+    if (date_to) {
+      const nextDate = getNextDate(date_to);
+      query = query.lt(dateColumn, `${nextDate} 00:00:00`);
+    }
 
     // 🌟 정렬 및 페이징 범위 적용
     const { data, error, count } = await query
@@ -81,7 +99,7 @@ export async function GET(request: Request) {
 
     if (error) throw error;
 
-    // 🌟 중요: 프론트엔드가 페이징 처리를 할 수 있도록 데이터와 전체 개수를 객체로 반환
+    // 🌟 프론트엔드가 페이징 처리를 할 수 있도록 데이터와 전체 개수를 객체로 반환
     return NextResponse.json({
       data: data || [],
       totalCount: count || 0,
@@ -129,7 +147,10 @@ export async function PATCH(request: Request) {
     const column = type === "TM" ? "tm_id" : "sales_id";
 
     if (!ids || ids.length === 0) {
-      return NextResponse.json({ error: "선택된 고객이 없습니다." }, { status: 400 });
+      return NextResponse.json(
+        { error: "선택된 고객이 없습니다." },
+        { status: 400 }
+      );
     }
 
     const updateValue =

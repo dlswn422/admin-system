@@ -84,12 +84,12 @@ export async function GET(request: Request) {
     const dateColumn = date_type === "상담일" ? "consult_date" : "sales_date";
 
     if (date_from) {
-      query = query.gte(dateColumn, `${date_from} 00:00:00`);
+      query = query.gte(dateColumn, date_from);
     }
 
     if (date_to) {
       const nextDate = getNextDate(date_to);
-      query = query.lt(dateColumn, `${nextDate} 00:00:00`);
+      query = query.lt(dateColumn, nextDate);
     }
 
     // 🌟 정렬 및 페이징 범위 적용

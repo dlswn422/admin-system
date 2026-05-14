@@ -123,6 +123,8 @@ export default function CustomersPage() {
   const [isRecordingsLoading, setIsRecordingsLoading] = useState(false);
   const [isUploadingRecording, setIsUploadingRecording] = useState(false);
   const [deletingRecordingId, setDeletingRecordingId] = useState<string | null>(null);
+  const [isSavingCustomer, setIsSavingCustomer] = useState(false);
+  const [isCustomerDeleting, setIsCustomerDeleting] = useState(false);
 
   const [isExcelUploading, setIsExcelUploading] = useState(false);
 
@@ -131,6 +133,20 @@ export default function CustomersPage() {
 
   const hoursList = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
   const minutesList = ["00", "10", "20", "30", "40", "50"];
+
+  const isModalBusy = isSavingCustomer || isUploadingRecording || deletingRecordingId !== null;
+
+  const modalLoadingMessage = isSavingCustomer
+    ? "저장 중입니다..."
+    : isUploadingRecording
+    ? "파일 업로드 중입니다..."
+    : deletingRecordingId !== null
+    ? "파일 삭제 중입니다..."
+    : "처리 중입니다...";
+
+  const LoadingSpinner = ({ className = "h-4 w-4" }: { className?: string }) => (
+    <RotateCw className={`${className} animate-spin`} />
+  );
 
   const showToast = useCallback(
     (message: string, type: "success" | "error" = "success") => {
@@ -576,6 +592,8 @@ export default function CustomersPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (isSavingCustomer) return;
+
     const companyName = String(formData.company_name || "").trim();
     if (!companyName) {
       showToast("업체명은 필수값입니다.", "error");
@@ -600,24 +618,37 @@ export default function CustomersPage() {
       sales_commission: Number(formData.sales_commission || 0),
     };
 
-    const res = await fetch(url, {
-      method: selectedCustomer ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    try {
+      setIsSavingCustomer(true);
 
-    if (res.ok) {
+      const res = await fetch(url, {
+        method: selectedCustomer ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || "저장 실패");
+      }
+
       setIsModalOpen(false);
       showToast("저장되었습니다.");
-      fetchData();
-    } else {
-      const data = await res.json().catch(() => null);
-      showToast(data?.error || "저장 실패", "error");
+      await fetchData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "저장 실패", "error");
+    } finally {
+      setIsSavingCustomer(false);
     }
   };
 
   const confirmDelete = async () => {
+    if (isCustomerDeleting) return;
+
     try {
+      setIsCustomerDeleting(true);
+
       let res;
       if (isBulkDeleteMode) {
         res = await fetch(`/api/customers`, {
@@ -652,6 +683,8 @@ export default function CustomersPage() {
       await fetchData();
     } catch (error) {
       showToast(error instanceof Error ? error.message : "삭제 실패", "error");
+    } finally {
+      setIsCustomerDeleting(false);
     }
   };
 
@@ -719,7 +752,7 @@ export default function CustomersPage() {
                 disabled={isExcelUploading}
                 className="inline-flex h-14 items-center gap-2 rounded-[20px] border border-emerald-400/15 bg-emerald-500/10 px-5 text-sm font-bold text-emerald-100 shadow-[0_14px_28px_rgba(2,6,23,0.18)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:bg-emerald-500/15 disabled:opacity-60"
               >
-                <Upload className="h-4.5 w-4.5" />
+                {isExcelUploading ? <LoadingSpinner className="h-4.5 w-4.5" /> : <Upload className="h-4.5 w-4.5" />}
                 {isExcelUploading ? "업로드 중..." : "엑셀 업로드"}
               </button>
               <button
@@ -920,8 +953,26 @@ export default function CustomersPage() {
       {isModalOpen && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/45 p-6 backdrop-blur-xl animate-in fade-in duration-300">
           <div className="relative max-h-[95vh] w-full max-w-6xl overflow-hidden rounded-[34px] border border-white/10 bg-white shadow-2xl flex flex-col text-slate-900">
+            {isModalBusy && (
+              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm">
+                <div className="flex flex-col items-center rounded-[28px] border border-slate-200 bg-white/95 px-10 py-8 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+                  <div className="relative flex h-20 w-20 items-center justify-center">
+                    <div className="absolute inset-0 rounded-full border-4 border-slate-200" />
+                    <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-blue-600 border-r-violet-500" />
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-600 to-violet-500 shadow-lg" />
+                  </div>
+                  <div className="mt-6 text-lg font-black tracking-[-0.03em] text-slate-900">
+                    처리 중
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-slate-500">
+                    {modalLoadingMessage}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="custom-scrollbar flex-1 overflow-y-auto p-8 md:p-10">
-              <button type="button" onClick={() => setIsModalOpen(false)} className="absolute right-6 top-6 flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition-all hover:text-slate-900"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => !isModalBusy && setIsModalOpen(false)} disabled={isModalBusy} className="absolute right-6 top-6 flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition-all hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"><X className="h-5 w-5" /></button>
 
               <div className="mb-10">
                 <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-slate-500 uppercase"><UserCheck className="h-3.5 w-3.5" />고객 데이터 설정</div>
@@ -1005,7 +1056,8 @@ export default function CustomersPage() {
                     <div className="rounded-[18px] border border-dashed border-slate-200 bg-white px-4 py-4 flex flex-col justify-center">
                       <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">녹취 업로드</div>
                       <button type="button" onClick={() => recordingInputRef.current?.click()} disabled={!selectedCustomer || isUploadingRecording} className="mt-2 inline-flex h-11 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-700 transition-all">
-                        <Upload className="h-4 w-4" />{isUploadingRecording ? "업로드 중..." : "파일 업로드"}
+                        {isUploadingRecording ? <LoadingSpinner /> : <Upload className="h-4 w-4" />}
+                        {isUploadingRecording ? "업로드 중..." : "파일 업로드"}
                       </button>
                     </div>
                     <label className="space-y-2 md:col-span-2 xl:col-span-3"><span className="text-sm font-bold text-slate-700">상담 메모</span>
@@ -1019,7 +1071,7 @@ export default function CustomersPage() {
                             {recordings.map((recording) => (
                               <div key={recording.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/50 px-4 py-3">
                                 <div className="flex items-center gap-3 overflow-hidden"><FileAudio className="h-4 w-4 text-violet-500 flex-none" /><span className="truncate text-xs font-bold text-slate-700">{recording.file_name}</span></div>
-                                <div className="flex items-center gap-2"><a href={recording.file_url} target="_blank" rel="noreferrer" className="p-2 text-slate-400 hover:text-blue-500"><ExternalLink className="h-4 w-4" /></a><button type="button" onClick={() => handleRecordingDelete(recording.id)} className="p-2 text-slate-400 hover:text-rose-500"><Trash2 className="h-4 w-4" /></button></div>
+                                <div className="flex items-center gap-2"><a href={recording.file_url} target="_blank" rel="noreferrer" className="p-2 text-slate-400 hover:text-blue-500"><ExternalLink className="h-4 w-4" /></a><button type="button" onClick={() => handleRecordingDelete(recording.id)} disabled={deletingRecordingId === recording.id} className="p-2 text-slate-400 hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-50">{deletingRecordingId === recording.id ? <LoadingSpinner /> : <Trash2 className="h-4 w-4" />}</button></div>
                               </div>
                             ))}
                           </div>
@@ -1055,8 +1107,8 @@ export default function CustomersPage() {
                 <div className="flex flex-col gap-4 rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] md:flex-row md:items-center md:justify-between">
                   <div className="text-sm font-semibold text-slate-600 italic">업체명 필수 입력 후 저장 가능합니다.</div>
                   <div className="flex gap-3">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-2xl border border-slate-200 bg-white px-8 py-4 text-sm font-bold text-slate-500 transition-all hover:bg-slate-50">취소</button>
-                    <button type="submit" disabled={!String(formData.company_name || "").trim()} className="rounded-2xl bg-gradient-to-r from-slate-900 to-blue-600 px-10 py-4 text-sm font-black text-white disabled:opacity-60 transition-all hover:shadow-lg">저장</button>
+                    <button type="button" onClick={() => setIsModalOpen(false)} disabled={isModalBusy} className="rounded-2xl border border-slate-200 bg-white px-8 py-4 text-sm font-bold text-slate-500 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">취소</button>
+                    <button type="submit" disabled={isSavingCustomer || !String(formData.company_name || "").trim()} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-slate-900 to-blue-600 px-10 py-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60 transition-all hover:shadow-lg">{isSavingCustomer && <LoadingSpinner />} {isSavingCustomer ? "저장 중..." : "저장"}</button>
                   </div>
                 </div>
               </form>
@@ -1082,8 +1134,8 @@ export default function CustomersPage() {
               <br />삭제 후 복구가 불가능합니다.
             </p>
             <div className="mt-8 flex flex-col gap-3">
-              <button type="button" onClick={confirmDelete} className="w-full rounded-2xl bg-rose-600 py-4 text-sm font-black text-white hover:bg-rose-700 transition-all">삭제</button>
-              <button type="button" onClick={() => setIsDeleteModalOpen(false)} className="w-full rounded-2xl border border-slate-200 bg-white py-4 text-sm font-bold text-slate-500 hover:bg-slate-50 transition-all">취소</button>
+              <button type="button" onClick={confirmDelete} disabled={isCustomerDeleting} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-rose-600 py-4 text-sm font-black text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60 transition-all">{isCustomerDeleting && <LoadingSpinner />} {isCustomerDeleting ? "삭제 중..." : "삭제"}</button>
+              <button type="button" onClick={() => setIsDeleteModalOpen(false)} disabled={isCustomerDeleting} className="w-full rounded-2xl border border-slate-200 bg-white py-4 text-sm font-bold text-slate-500 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 transition-all">취소</button>
             </div>
           </div>
         </div>

@@ -303,23 +303,61 @@ export default function CustomersPage() {
 
   const handleBulkAssign = async (type: "TM" | "SALES") => {
     const assigneeId = type === "TM" ? assignTmId : assignSalesId;
+
     if (!assigneeId) {
       return showToast("배정할 담당자를 선택해주세요.", "error");
     }
+
     if (selectedIds.length === 0) {
       return showToast("고객을 먼저 선택해주세요.", "error");
+    }
+
+    const selectedCustomers = customers.filter((customer) =>
+      selectedIds.includes(customer.id)
+    );
+
+    const assignableCustomers = selectedCustomers.filter((customer) => {
+      if (type === "TM") {
+        return !customer.tm_id;
+      }
+
+      if (type === "SALES") {
+        return !customer.sales_id;
+      }
+
+      return false;
+    });
+
+    const skippedCount = selectedCustomers.length - assignableCustomers.length;
+
+    if (assignableCustomers.length === 0) {
+      return showToast(
+        type === "TM"
+          ? "선택한 고객은 모두 이미 상담사가 배정되어 있습니다."
+          : "선택한 고객은 모두 이미 영업담당자가 배정되어 있습니다.",
+        "error"
+      );
     }
 
     try {
       const res = await fetch("/api/customers", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: selectedIds, type, assignee_id: assigneeId }),
+        body: JSON.stringify({
+          ids: assignableCustomers.map((customer) => customer.id),
+          type,
+          assignee_id: assigneeId,
+        }),
       });
 
       if (!res.ok) throw new Error("배정 중 오류 발생");
 
-      showToast(`${selectedIds.length}명 일괄 배정 완료`);
+      showToast(
+        skippedCount > 0
+          ? `${assignableCustomers.length}명 배정 완료 / 이미 배정된 ${skippedCount}명 제외`
+          : `${assignableCustomers.length}명 일괄 배정 완료`
+      );
+
       setSelectedIds([]);
       await fetchData();
     } catch (e) {

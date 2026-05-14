@@ -259,7 +259,9 @@ export default function CustomersPage() {
   }, []);
 
   const buildDateTimeValue = useCallback((date: string, hour: string, minute: string) => {
-    return date ? `${date} ${hour}:${minute}:00` : "";
+    if (!date) return "";
+    if (!hour || !minute) return date;
+    return `${date} ${hour}:${minute}:00`;
   }, []);
 
   const getUserNameById = useCallback(
@@ -642,8 +644,8 @@ export default function CustomersPage() {
     } else {
       setFormData({
         receipt_date: today,
-        consult_date: `${today} 09:00:00`,
-        sales_date: `${today} 09:00:00`,
+        consult_date: "",
+        sales_date: "",
         sales_commission: 0,
       });
     }
@@ -1217,22 +1219,24 @@ export default function CustomersPage() {
                       <span className="text-sm font-bold text-slate-700 flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> 상담일시 (날짜 / 시 / 분)</span>
                       <div className="flex gap-2">
                         <input type="date" value={getDateInputValue(formData.consult_date)} onChange={(e) => {
-                          const hour = getTimeHourValue(formData.consult_date);
-                          const minute = getTimeMinuteValue(formData.consult_date);
+                          const hour = getTimeHourValue(formData.consult_date, "", false);
+                          const minute = getTimeMinuteValue(formData.consult_date, "", false);
                           setFormData({ ...formData, consult_date: buildDateTimeValue(e.target.value, hour, minute) });
                         }} className="h-14 flex-[2] rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500" />
-                        <select value={getTimeHourValue(formData.consult_date)} onChange={(e) => {
+                        <select value={getTimeHourValue(formData.consult_date, "", false)} onChange={(e) => {
                           const date = getDateInputValue(formData.consult_date);
-                          const minute = getTimeMinuteValue(formData.consult_date);
+                          const minute = e.target.value ? getTimeMinuteValue(formData.consult_date, "", false) || "00" : "";
                           setFormData({ ...formData, consult_date: buildDateTimeValue(date, e.target.value, minute) });
                         }} className="h-14 flex-1 rounded-[18px] border border-slate-200 bg-white px-2 text-sm font-black text-center text-slate-900 outline-none focus:border-emerald-500">
+                          <option value="">시</option>
                           {hoursList.map(h => <option key={h} value={h}>{h}시</option>)}
                         </select>
-                        <select value={getTimeMinuteValue(formData.consult_date)} onChange={(e) => {
+                        <select value={getTimeMinuteValue(formData.consult_date, "", false)} onChange={(e) => {
                           const date = getDateInputValue(formData.consult_date);
-                          const hour = getTimeHourValue(formData.consult_date);
+                          const hour = e.target.value ? getTimeHourValue(formData.consult_date, "", false) || "09" : "";
                           setFormData({ ...formData, consult_date: buildDateTimeValue(date, hour, e.target.value) });
                         }} className="h-14 flex-1 rounded-[18px] border border-slate-200 bg-white px-2 text-sm font-black text-center text-slate-900 outline-none focus:border-emerald-500">
+                          <option value="">분</option>
                           {minutesList.map(m => <option key={m} value={m}>{m}분</option>)}
                         </select>
                       </div>
@@ -1288,32 +1292,34 @@ export default function CustomersPage() {
                           type="date"
                           value={getDateInputValue(formData.sales_date)}
                           onChange={(e) => {
-                            const hour = getTimeHourValue(formData.sales_date, "09", true);
-                            const minute = getTimeMinuteValue(formData.sales_date, "00", true);
+                            const hour = getTimeHourValue(formData.sales_date, "", false);
+                            const minute = getTimeMinuteValue(formData.sales_date, "", false);
                             setFormData({ ...formData, sales_date: buildDateTimeValue(e.target.value, hour, minute) });
                           }}
                           className="h-14 flex-[2] rounded-[18px] border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-violet-500"
                         />
                         <select
-                          value={getTimeHourValue(formData.sales_date, "09", true)}
+                          value={getTimeHourValue(formData.sales_date, "", false)}
                           onChange={(e) => {
                             const date = getDateInputValue(formData.sales_date);
-                            const minute = getTimeMinuteValue(formData.sales_date, "00", true);
+                            const minute = e.target.value ? getTimeMinuteValue(formData.sales_date, "", false) || "00" : "";
                             setFormData({ ...formData, sales_date: buildDateTimeValue(date, e.target.value, minute) });
                           }}
                           className="h-14 flex-1 rounded-[18px] border border-slate-200 bg-white px-2 text-center text-sm font-black text-slate-900 outline-none focus:border-violet-500"
                         >
+                          <option value="">시</option>
                           {hoursList.map((h) => <option key={h} value={h}>{h}시</option>)}
                         </select>
                         <select
-                          value={getTimeMinuteValue(formData.sales_date, "00", true)}
+                          value={getTimeMinuteValue(formData.sales_date, "", false)}
                           onChange={(e) => {
                             const date = getDateInputValue(formData.sales_date);
-                            const hour = getTimeHourValue(formData.sales_date, "09", true);
+                            const hour = e.target.value ? getTimeHourValue(formData.sales_date, "", false) || "09" : "";
                             setFormData({ ...formData, sales_date: buildDateTimeValue(date, hour, e.target.value) });
                           }}
                           className="h-14 flex-1 rounded-[18px] border border-slate-200 bg-white px-2 text-center text-sm font-black text-slate-900 outline-none focus:border-violet-500"
                         >
+                          <option value="">분</option>
                           {minutesList.map((m) => <option key={m} value={m}>{m}분</option>)}
                         </select>
                       </div>

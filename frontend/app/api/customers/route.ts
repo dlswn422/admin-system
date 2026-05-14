@@ -34,7 +34,6 @@ const buildCreatePayload = (body: any) => {
     consult_date: emptyToNull(body.consult_date),
     sales_date: emptyToNull(body.sales_date),
 
-    // 핵심 수정
     tm_id: emptyToNull(body.tm_id),
     sales_id: emptyToNull(body.sales_id),
 
@@ -63,8 +62,10 @@ export async function GET(request: Request) {
     const limitParam = Number(searchParams.get("limit") || "10");
     const offsetParam = Number(searchParams.get("offset") || "0");
 
-    const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : 10;
-    const offset = Number.isFinite(offsetParam) && offsetParam >= 0 ? offsetParam : 0;
+    const limit =
+      Number.isFinite(limitParam) && limitParam > 0 ? limitParam : 10;
+    const offset =
+      Number.isFinite(offsetParam) && offsetParam >= 0 ? offsetParam : 0;
 
     const getNextDate = (dateStr: string) => {
       const date = new Date(`${dateStr}T00:00:00`);
@@ -176,13 +177,24 @@ export async function PATCH(request: Request) {
     const column = type === "TM" ? "tm_id" : "sales_id";
 
     const updateValue =
-      assignee_id === "" || assignee_id === "all" || assignee_id === "unassigned"
+      assignee_id === "" ||
+      assignee_id === "all" ||
+      assignee_id === "unassigned"
         ? null
         : assignee_id;
 
+    const updatePayload: Record<string, any> = {
+      [column]: updateValue,
+    };
+
+    // 영업자 일괄 배정 시에만 영업 상태를 "방문 전"으로 자동 설정
+    if (type === "SALES" && updateValue) {
+      updatePayload.sales_status = "방문 전";
+    }
+
     const { error } = await supabase
       .from("customers")
-      .update({ [column]: updateValue })
+      .update(updatePayload)
       .in("id", ids);
 
     if (error) throw error;

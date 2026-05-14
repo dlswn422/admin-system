@@ -168,10 +168,17 @@ export default function ConsultationPage() {
     return String(value).replace("T", " ").split(" ")[1]?.split(":")[1] || "";
   };
 
-  const buildConsultDateTime = (date: string, hour: string, minute: string) => {
+  const buildDateOnlyValue = (date: string) => {
+    return date || "";
+  };
+
+  const buildSalesDateTime = (date: string, hour: string, minute: string) => {
     if (!date) return "";
-    if (!hour || !minute) return date;
-    return `${date} ${hour}:${minute}:00`;
+
+    const normalizedHour = hour || "09";
+    const normalizedMinute = minute || "00";
+
+    return `${date} ${normalizedHour}:${normalizedMinute}:00`;
   };
 
   const formatConsultDate = (value?: string | null) => {
@@ -415,7 +422,7 @@ export default function ConsultationPage() {
     if (customer) {
       const cleanConsultDate =
         customer.consult_date && String(customer.consult_date).trim() !== ""
-          ? String(customer.consult_date).replace("T", " ")
+          ? String(customer.consult_date).replace("T", " ").split(" ")[0]
           : "";
 
       const cleanSalesDate =
@@ -701,7 +708,7 @@ export default function ConsultationPage() {
         <div className="hidden md:block overflow-x-auto p-8">
           <div className="min-w-[1400px] space-y-3">
             <div className="grid grid-cols-[150px_150px_180px_140px_150px_140px_1fr_120px] gap-6 px-8 py-2 text-[11px] font-black uppercase tracking-widest text-slate-400">
-              <span className="text-center">상담일시</span>
+              <span className="text-center">상담일자</span>
               <span className="text-center">영업일시</span>
               <span>업체명</span>
               <span className="text-center">대표자</span>
@@ -727,9 +734,6 @@ export default function ConsultationPage() {
                     >
                       <div className="text-center flex flex-col text-[11px] font-black">
                         <span>{consultDate.date}</span>
-                        {consultDate.time && (
-                          <span className="text-blue-500">{consultDate.time}</span>
-                        )}
                       </div>
                       <div className="text-center flex flex-col text-[11px] font-black">
                         {(() => {
@@ -800,7 +804,6 @@ export default function ConsultationPage() {
                     <div className="flex gap-2 text-[10px] font-black">
                       <span className="text-blue-500">
                         상담 {consultDate.date}
-                        {consultDate.time ? ` ${consultDate.time}` : ""}
                       </span>
                       <span className="text-violet-500">
                         영업 {formatConsultDate(c.sales_date).date}
@@ -976,7 +979,7 @@ export default function ConsultationPage() {
 
               <div className="space-y-2 pt-1">
                 <div className="flex items-center gap-2 text-[11px] font-black text-slate-800">
-                  <Clock className="h-4 w-4 text-blue-500" /> 상담 일시 및 상태
+                  <Clock className="h-4 w-4 text-blue-500" /> 상담일자 및 상태
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <select
@@ -999,67 +1002,13 @@ export default function ConsultationPage() {
                     type="date"
                     value={getDatePart(formData.consult_date)}
                     onChange={(e) => {
-                      const hour = getHourPart(formData.consult_date);
-                      const minute = getMinutePart(formData.consult_date);
                       setFormData((p) => ({
                         ...p,
-                        consult_date: buildConsultDateTime(
-                          e.target.value,
-                          hour,
-                          minute
-                        ),
+                        consult_date: buildDateOnlyValue(e.target.value),
                       }));
                     }}
                     className="h-10 rounded-xl border-2 border-slate-100 bg-slate-50 px-3 text-[11px] font-bold text-slate-900 outline-none"
                   />
-                </div>
-                <div className="flex gap-2">
-                  <select
-                    value={getHourPart(formData.consult_date)}
-                    onChange={(e) => {
-                      const date = getDatePart(formData.consult_date);
-                      const minute = getMinutePart(formData.consult_date);
-                      setFormData((p) => ({
-                        ...p,
-                        consult_date: buildConsultDateTime(
-                          date,
-                          e.target.value,
-                          minute
-                        ),
-                      }));
-                    }}
-                    className="h-9 flex-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-900 text-center"
-                  >
-                    <option value="">시</option>
-                    {hoursList.map((h) => (
-                      <option key={h} value={h}>
-                        {h}시
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={getMinutePart(formData.consult_date)}
-                    onChange={(e) => {
-                      const date = getDatePart(formData.consult_date);
-                      const hour = getHourPart(formData.consult_date);
-                      setFormData((p) => ({
-                        ...p,
-                        consult_date: buildConsultDateTime(
-                          date,
-                          hour,
-                          e.target.value
-                        ),
-                      }));
-                    }}
-                    className="h-9 flex-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-900 text-center"
-                  >
-                    <option value="">분</option>
-                    {minutesList.map((m) => (
-                      <option key={m} value={m}>
-                        {m}분
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </div>
 
@@ -1076,7 +1025,7 @@ export default function ConsultationPage() {
                       const minute = getMinutePart(formData.sales_date);
                       setFormData((p) => ({
                         ...p,
-                        sales_date: buildConsultDateTime(
+                        sales_date: buildSalesDateTime(
                           e.target.value,
                           hour,
                           minute
@@ -1094,7 +1043,7 @@ export default function ConsultationPage() {
                       const minute = getMinutePart(formData.sales_date);
                       setFormData((p) => ({
                         ...p,
-                        sales_date: buildConsultDateTime(
+                        sales_date: buildSalesDateTime(
                           date,
                           e.target.value,
                           minute
@@ -1117,7 +1066,7 @@ export default function ConsultationPage() {
                       const hour = getHourPart(formData.sales_date);
                       setFormData((p) => ({
                         ...p,
-                        sales_date: buildConsultDateTime(
+                        sales_date: buildSalesDateTime(
                           date,
                           hour,
                           e.target.value

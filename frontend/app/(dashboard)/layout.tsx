@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import AdminSidebar from "../components/layout/admin-sidebar";
 import AdminHeader from "../components/layout/admin-header";
 
@@ -10,9 +10,102 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const router = useRouter();
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-  const router = useRouter();
+  const [isPermissionChecking, setIsPermissionChecking] = useState(true);
+  const [isAllowed, setIsAllowed] = useState(false);
+
+  const checkPermission = useCallback(async () => {
+    try {
+      setIsPermissionChecking(true);
+      setIsAllowed(false);
+
+      const savedUser = localStorage.getItem("user");
+
+      if (!savedUser) {
+        router.replace("/login");
+        return;
+      }
+
+      let user: any;
+
+      try {
+        user = JSON.parse(savedUser);
+      } catch (error) {
+        console.error("저장된 사용자 정보 파싱 오류:", error);
+        localStorage.removeItem("user");
+        router.replace("/login");
+        return;
+      }
+
+      if (!user?.role_id) {
+        localStorage.removeItem("user");
+        router.replace("/login");
+        return;
+      }
+
+      const menuRes = await fetch(`/api/menus?role_id=${user.role_id}`, {
+        cache: "no-store",
+      });
+
+      if (!menuRes.ok) {
+        throw new Error("메뉴 조회 실패");
+      }
+
+      const menus = await menuRes.json();
+
+      if (!Array.isArray(menus) || menus.length === 0) {
+        console.error("접근 가능한 메뉴가 없습니다.");
+        localStorage.removeItem("user");
+        router.replace("/login");
+        return;
+      }
+
+      const normalizedPathname = pathname.endsWith("/")
+        ? pathname.slice(0, -1)
+        : pathname;
+
+      const hasPermission = menus.some((menu: any) => {
+        if (!menu?.path) return false;
+
+        const menuPath = String(menu.path).endsWith("/")
+          ? String(menu.path).slice(0, -1)
+          : String(menu.path);
+
+        return (
+          normalizedPathname === menuPath ||
+          normalizedPathname.startsWith(`${menuPath}/`)
+        );
+      });
+
+      if (!hasPermission) {
+        const firstMenuPath = menus[0]?.path;
+
+        if (firstMenuPath) {
+          router.replace(firstMenuPath);
+        } else {
+          router.replace("/login");
+        }
+
+        return;
+      }
+
+      setIsAllowed(true);
+    } catch (error) {
+      console.error("권한 확인 오류:", error);
+      localStorage.removeItem("user");
+      router.replace("/login");
+    } finally {
+      setIsPermissionChecking(false);
+    }
+  }, [pathname, router]);
+
+  useEffect(() => {
+    checkPermission();
+  }, [checkPermission]);
 
   useEffect(() => {
     document.body.style.overflow = isSidebarOpen ? "hidden" : "unset";
@@ -28,11 +121,28 @@ export default function DashboardLayout({
     router.push("/login");
   };
 
+  if (isPermissionChecking || !isAllowed) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC]">
+        <div className="flex flex-col items-center gap-4 rounded-[28px] border border-slate-200 bg-white px-10 py-8 shadow-[0_18px_44px_rgba(15,23,42,0.08)]">
+          <div className="relative flex h-14 w-14 items-center justify-center">
+            <div className="absolute inset-0 rounded-full border-4 border-slate-200" />
+            <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-blue-600 border-r-violet-500" />
+            <div className="h-5 w-5 rounded-full bg-gradient-to-r from-blue-600 to-violet-500" />
+          </div>
+          <div className="text-sm font-black text-slate-700">
+            권한 확인 중입니다...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen overflow-hidden bg-[#F8FAFC]">
       {/* 데스크탑 고정 사이드바 */}
       <div className="hidden lg:block lg:w-72 lg:shrink-0">
-        <div className="sticky top-0 h-screen">
+        <div className="sticky top-0 h-[100dvh]">
           <AdminSidebar onLogoutOpen={() => setIsLogoutModalOpen(true)} />
         </div>
       </div>
@@ -47,7 +157,7 @@ export default function DashboardLayout({
 
       {/* 모바일 드로어 사이드바 */}
       <div
-        className={`fixed inset-y-0 left-0 z-[70] h-screen w-72 transform transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] lg:hidden ${
+        className={`fixed inset-y-0 left-0 z-[70] h-[100dvh] w-72 transform transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] lg:hidden ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -55,7 +165,7 @@ export default function DashboardLayout({
       </div>
 
       {/* 메인 콘텐츠 */}
-      <div className="flex min-w-0 flex-1 flex-col h-screen overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col h-[100dvh] overflow-hidden">
         <div className="sticky top-0 z-50 shrink-0 bg-transparent px-3 pt-3 md:px-5 md:pt-4">
           <header className="relative overflow-hidden rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(8,14,28,0.86)_0%,rgba(7,12,24,0.8)_100%)] shadow-[0_18px_40px_rgba(2,6,23,0.18)] backdrop-blur-2xl">
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),transparent_30%)]" />
@@ -65,6 +175,7 @@ export default function DashboardLayout({
               onClick={() => setIsSidebarOpen(true)}
               className="absolute left-3 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-lg text-slate-300 shadow-[0_10px_24px_rgba(2,6,23,0.16)] backdrop-blur-xl transition-all hover:border-blue-400/20 hover:bg-blue-500/10 hover:text-white lg:hidden"
               aria-label="메뉴 열기"
+              type="button"
             >
               ☰
             </button>
@@ -106,12 +217,14 @@ export default function DashboardLayout({
               <button
                 onClick={() => setIsLogoutModalOpen(false)}
                 className="flex-1 rounded-2xl bg-white/5 py-4 text-sm font-bold text-slate-300 transition-all hover:bg-white/10"
+                type="button"
               >
                 취소
               </button>
               <button
                 onClick={confirmLogout}
                 className="flex-1 rounded-2xl bg-gradient-to-r from-rose-600 to-rose-500 py-4 text-sm font-bold text-white shadow-lg shadow-rose-900/20 transition-all active:scale-95"
+                type="button"
               >
                 로그아웃
               </button>

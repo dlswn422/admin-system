@@ -369,7 +369,7 @@ export default function SalesManagementPage() {
     if (role === "관리자") return salesCodes;
 
     return salesCodes.filter(c =>
-      ["방문 전", "관리", "거절", "조회 요청", "방문 약속", "계약실패"].includes(c.code_name)
+      ["방문 전", "관리", "거절", "조회 요청", "방문 약속", "계약실패", "조회거절"].includes(c.code_name)
     );
   }, [salesCodes, currentUser]);
 

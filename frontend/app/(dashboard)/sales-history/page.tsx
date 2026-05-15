@@ -93,7 +93,7 @@ export default function SalesManagementPage() {
   });
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRankModalOpen, setIsRankModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -147,6 +147,10 @@ export default function SalesManagementPage() {
       const roleName = activeUser.role_name || (activeUser as any).role;
       const listParams = new URLSearchParams({ date_type: "영업일" });
 
+      // 중요: API 쪽에서 기본 10개 제한이 걸려있는 경우를 방지하기 위해 충분히 큰 limit 전달
+      // API가 limit 파라미터를 지원하지 않아도 기존 기능에는 영향 없음
+      listParams.append("limit", "10000");
+
       if (filters.date_from) listParams.append("date_from", filters.date_from);
       if (filters.date_to) listParams.append("date_to", filters.date_to);
       if (filters.search) listParams.append("search", filters.search);
@@ -159,6 +163,9 @@ export default function SalesManagementPage() {
       }
 
       const rankParams = new URLSearchParams({ date_type: "영업일" });
+
+      // 랭킹도 전체 데이터 기준으로 계산되어야 하므로 동일하게 limit 전달
+      rankParams.append("limit", "10000");
 
       if (filters.date_from) rankParams.append("date_from", filters.date_from);
       if (filters.date_to) rankParams.append("date_to", filters.date_to);
@@ -203,6 +210,11 @@ export default function SalesManagementPage() {
   useEffect(() => {
     if (currentUser) fetchData();
   }, [filters.date_from, filters.date_to, filters.search, filters.sales_id, filters.sales_status]);
+
+  // 필터가 바뀌면 이전 페이지 번호 때문에 빈 화면이 나오는 것을 방지
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters.date_from, filters.date_to, filters.search, filters.sales_id, filters.sales_status, itemsPerPage]);
 
   const fetchRecordings = async (customerId: string) => {
     setIsRecordingsLoading(true);
@@ -373,12 +385,22 @@ export default function SalesManagementPage() {
     );
   }, [salesCodes, currentUser]);
 
+  const totalPages = Math.max(1, Math.ceil(customers.length / itemsPerPage));
+
+  // 데이터 개수 변경으로 현재 페이지가 총 페이지보다 커졌을 때 보정
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return customers.slice(start, start + itemsPerPage);
   }, [customers, currentPage, itemsPerPage]);
 
-  const totalPages = Math.max(1, Math.ceil(customers.length / itemsPerPage));
+  const pageStartItem = customers.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const pageEndItem = Math.min(currentPage * itemsPerPage, customers.length);
 
   if (!currentUser) return null;
 
@@ -489,7 +511,7 @@ export default function SalesManagementPage() {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 xl:grid-cols-[1fr_1fr_auto_auto]">
+        <div className="mt-4 grid gap-3 xl:grid-cols-[1fr_1fr_auto_auto_auto]">
           <select
             disabled={!isAdmin}
             value={filters.sales_id || "all"}
@@ -519,6 +541,16 @@ export default function SalesManagementPage() {
             {salesCodes.map(c => (
               <option key={c.code_value} value={c.code_name}>{c.code_name}</option>
             ))}
+          </select>
+
+          <select
+            value={itemsPerPage}
+            onChange={e => setItemsPerPage(Number(e.target.value))}
+            className="h-14 rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-900 focus:border-blue-500 outline-none shadow-inner"
+          >
+            <option value={10}>10개씩 보기</option>
+            <option value={50}>50개씩 보기</option>
+            <option value={100}>100개씩 보기</option>
           </select>
 
           <button
@@ -563,6 +595,10 @@ export default function SalesManagementPage() {
               [1, 2, 3].map(i => (
                 <div key={i} className="h-20 animate-pulse rounded-2xl bg-slate-50" />
               ))
+            ) : paginatedData.length === 0 ? (
+              <div className="flex h-32 items-center justify-center rounded-2xl bg-slate-50 text-sm font-black text-slate-400">
+                조회된 데이터가 없습니다.
+              </div>
             ) : (
               paginatedData.map(c => {
                 const salesDate = formatDateTime(c.sales_date);
@@ -623,15 +659,29 @@ export default function SalesManagementPage() {
           </div>
         </div>
 
-        <div className="px-10 py-8 border-t border-slate-50 flex items-center justify-between bg-slate-50/30">
-          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">
-            Total {customers.length} Items Displayed
-          </p>
+        <div className="px-4 py-6 md:px-10 md:py-8 border-t border-slate-50 flex flex-col gap-4 bg-slate-50/30 xl:flex-row xl:items-center xl:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+              Total {customers.length} Items
+            </p>
+            <p className="text-xs font-bold text-slate-400">
+              현재 {pageStartItem} - {pageEndItem}건 표시 / {itemsPerPage}개씩 보기
+            </p>
+          </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               disabled={currentPage === 1}
-              onClick={() => setCurrentPage(p => p - 1)}
+              onClick={() => setCurrentPage(1)}
+              className="h-11 rounded-xl border-2 border-slate-100 bg-white px-4 text-xs font-black text-slate-500 disabled:opacity-20 hover:bg-slate-50 transition-all"
+              type="button"
+            >
+              처음
+            </button>
+
+            <button
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               className="p-3 rounded-xl border-2 border-slate-100 bg-white disabled:opacity-20 hover:bg-slate-50 transition-all"
               type="button"
             >
@@ -644,11 +694,20 @@ export default function SalesManagementPage() {
 
             <button
               disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(p => p + 1)}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               className="p-3 rounded-xl border-2 border-slate-100 bg-white disabled:opacity-20 hover:bg-slate-50 transition-all"
               type="button"
             >
               <ChevronRight className="h-5 w-5" />
+            </button>
+
+            <button
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(totalPages)}
+              className="h-11 rounded-xl border-2 border-slate-100 bg-white px-4 text-xs font-black text-slate-500 disabled:opacity-20 hover:bg-slate-50 transition-all"
+              type="button"
+            >
+              마지막
             </button>
           </div>
         </div>

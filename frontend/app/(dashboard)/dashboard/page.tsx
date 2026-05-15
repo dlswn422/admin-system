@@ -10,18 +10,26 @@ import {
   HelpCircle,
 } from "lucide-react";
 
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const [dateRange, setDateRange] = useState(() => {
     const today = new Date();
-    const ago = new Date();
-    ago.setMonth(today.getMonth() - 1);
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
     return {
-      from: ago.toISOString().split("T")[0],
-      to: today.toISOString().split("T")[0],
+      from: formatLocalDate(firstDay),
+      to: formatLocalDate(lastDay),
     };
   });
 
@@ -194,7 +202,6 @@ export default function DashboardPage() {
               key={i}
               className="group rounded-[24px] border border-slate-200/70 bg-white p-4 shadow-sm transition-all hover:border-indigo-200 sm:rounded-[32px] sm:p-6"
             >
-              {/* 모바일 상단 */}
               <div className="mb-5 flex items-center gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 text-sm font-black text-slate-400 shadow-sm transition-colors group-hover:bg-indigo-50 group-hover:text-indigo-500 sm:h-14 sm:w-14 sm:text-base">
                   {String(i + 1).padStart(2, "0")}
@@ -211,7 +218,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* 상태 카드 */}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 lg:gap-3">
                 {data.headers.consult.map((h: string) => {
                   const count = tm.statusCounts[h] || 0;
@@ -280,7 +286,6 @@ export default function DashboardPage() {
               key={i}
               className="group rounded-[24px] border border-slate-200/70 bg-white p-4 shadow-sm transition-all hover:border-emerald-200 sm:rounded-[32px] sm:p-6 lg:p-7"
             >
-              {/* 프로필 영역 */}
               <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-center gap-4 sm:gap-5">
                   <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-emerald-500 text-xl font-black text-white shadow-lg shadow-emerald-200/50 transition-transform group-hover:scale-105 sm:h-16 sm:w-16 sm:rounded-[22px] sm:text-2xl">
@@ -312,7 +317,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* 상태 카드 */}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7 lg:gap-3">
                 {data.headers.sales.map((h: string) => {
                   const count = sales.statusCounts[h] || 0;

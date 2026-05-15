@@ -78,7 +78,6 @@ type FilterState = {
 export default function SalesManagementPage() {
   const [currentUser, setCurrentUser] = useState<UserInfo | null>(null);
 
-  // --- States ---
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [allSalesDataForRank, setAllSalesDataForRank] = useState<Customer[]>([]);
   const [users, setUsers] = useState<UserInfo[]>([]);
@@ -139,7 +138,6 @@ export default function SalesManagementPage() {
     return v === "" ? null : v;
   }, []);
 
-  // --- API 호출 로직 ---
   const fetchData = useCallback(async (userOverride?: UserInfo) => {
     const activeUser = userOverride || currentUser;
     if (!activeUser) return;
@@ -371,7 +369,7 @@ export default function SalesManagementPage() {
     if (role === "관리자") return salesCodes;
 
     return salesCodes.filter(c =>
-      ["방문 전", "관리", "거절", "조회 요청", "방문 약속"].includes(c.code_name)
+      ["방문 전", "관리", "거절", "조회 요청", "방문 약속", "계약실패"].includes(c.code_name)
     );
   }, [salesCodes, currentUser]);
 
@@ -393,7 +391,6 @@ export default function SalesManagementPage() {
         </div>
       )}
 
-      {/* 헤더 섹션 */}
       <section>
         <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[#1e232d] px-10 py-8 shadow-xl">
           <div className="relative flex items-center justify-between">
@@ -426,7 +423,6 @@ export default function SalesManagementPage() {
         </div>
       </section>
 
-      {/* 통계 요약 카드 */}
       <section className="grid gap-4 md:grid-cols-3">
         {[
           { label: "담당 고객", value: stats.total, icon: Users, color: "text-blue-600 bg-blue-50" },
@@ -458,7 +454,6 @@ export default function SalesManagementPage() {
         </button>
       </section>
 
-      {/* 검색 및 필터 컨트롤 */}
       <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
         <div className="grid items-start gap-4 xl:grid-cols-[140px_1fr]">
           <div className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-slate-100 px-4 text-sm font-black text-slate-500">
@@ -548,7 +543,6 @@ export default function SalesManagementPage() {
         </div>
       </section>
 
-      {/* 데이터 테이블 리스트 */}
       <section className="rounded-[30px] border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="p-4 md:p-8 overflow-x-auto">
           <div className="min-w-[1500px] space-y-3">
@@ -660,7 +654,6 @@ export default function SalesManagementPage() {
         </div>
       </section>
 
-      {/* 영업 상세 정보 모달 */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm md:items-center md:p-3">
           <div className="relative flex h-[96vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[26px] border border-slate-200 bg-white text-slate-900 shadow-2xl md:h-auto md:max-h-[88vh] md:rounded-[28px]">
@@ -770,40 +763,6 @@ export default function SalesManagementPage() {
                           placeholder="업체 관련 비고를 입력하세요."
                           className="min-h-[48px] w-full resize-none rounded-lg border border-slate-200 bg-white p-2.5 text-xs font-bold text-slate-900 outline-none focus:border-blue-500"
                         />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[20px] border border-slate-100 bg-slate-50/60 p-4">
-                    <div className="mb-3 flex items-center justify-between">
-                      <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500">
-                        <UserCheck className="h-4 w-4" /> 상담팀 기록
-                      </h3>
-                      <div className="text-right">
-                        <div className="text-[10px] font-black uppercase text-slate-400">상담 일시</div>
-                        <div className="text-xs font-black text-blue-600">
-                          {selectedCustomer?.consult_date?.replace("T", " ").slice(0, 16) || "미지정"}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="space-y-1">
-                        <label className="ml-1 text-[10px] font-black uppercase text-slate-400">
-                          상담 상태
-                        </label>
-                        <div className="flex h-9 w-full items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-500">
-                          {selectedCustomer?.consult_status || "상담 완료"}
-                        </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="ml-1 text-[10px] font-black uppercase text-slate-400">
-                          상담 메모
-                        </label>
-                        <div className="max-h-[96px] min-h-[64px] overflow-y-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-white p-2.5 text-xs font-bold leading-relaxed text-slate-500">
-                          {selectedCustomer?.consult_memo || "기록된 상담 내용이 없습니다."}
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -1022,7 +981,6 @@ export default function SalesManagementPage() {
         </div>
       )}
 
-      {/* 영업자 실적 랭킹 모달 */}
       {isRankModalOpen && (
         <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-950/60 p-6 backdrop-blur-md">
           <div className="relative w-full max-w-2xl rounded-[40px] bg-white shadow-2xl p-12 animate-in zoom-in-95">

@@ -453,7 +453,7 @@ export default function ConsultationPage() {
       note: "",
       receipt_date: getTodayDateString(),
       tm_id: currentUser?.id || "",
-      consult_date: "",
+      consult_date: getTodayDateString(),
       sales_date: "",
       consult_status: "대기",
       consult_memo: "",
@@ -474,11 +474,14 @@ export default function ConsultationPage() {
       return;
     }
 
+    // 수정 사항: 신규 등록/수정 저장 시 상담일자는 화면 입력값이 아니라 저장하는 당일 날짜로 저장
+    const saveDate = getTodayDateString();
+
     const payload = {
       ...formData,
       company_name: companyName,
       receipt_date: normalizeDateValue(formData.receipt_date),
-      consult_date: normalizeDateValue(formData.consult_date),
+      consult_date: saveDate,
       sales_date: normalizeDateValue(formData.sales_date),
       consult_status: String(formData.consult_status || "").trim() || "대기",
       tm_id: formData.tm_id ? formData.tm_id : null,
@@ -724,7 +727,7 @@ export default function ConsultationPage() {
                     className="h-20 rounded-[24px] bg-slate-50 animate-pulse"
                   />
                 ))
-              : customers.map((c) => {
+              : paginatedData.map((c) => {
                   const consultDate = formatConsultDate(c.consult_date);
                   return (
                     <div
@@ -783,7 +786,7 @@ export default function ConsultationPage() {
                   className="h-32 rounded-2xl bg-slate-50 animate-pulse"
                 />
               ))
-            : customers.map((c) => {
+            : paginatedData.map((c) => {
                 const consultDate = formatConsultDate(c.consult_date);
                 return (
                   <div

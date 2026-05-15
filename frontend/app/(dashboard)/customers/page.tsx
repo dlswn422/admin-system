@@ -643,7 +643,7 @@ export default function CustomersPage() {
     } else {
       setFormData({
         receipt_date: today,
-        consult_date: "",
+        consult_date: today,
         sales_date: "",
         sales_commission: 0,
       });
@@ -780,7 +780,9 @@ export default function CustomersPage() {
       company_name: companyName,
 
       receipt_date: normalizeDateValue(formData.receipt_date),
-      consult_date: normalizeDateValue(formData.consult_date),
+      consult_date: selectedCustomer
+        ? normalizeDateValue(formData.consult_date)
+        : getTodayDate(),
       sales_date: normalizeDateValue(formData.sales_date),
 
       consult_status: String(formData.consult_status || "").trim() || null,
@@ -1090,7 +1092,17 @@ export default function CustomersPage() {
                         <button type="button" onClick={() => openModal(c)} className="flex justify-center">
                           <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-bold ${getStatusTone(c.consult_status)}`}>{c.consult_status || "미지정"}</span>
                         </button>
-                        <button type="button" onClick={() => openModal(c)} className="text-center text-xs font-semibold text-slate-700 truncate">{getUserNameById(c.sales_id)}</button>
+                        <button type="button" onClick={() => openModal(c)} className="flex justify-center">
+                          <span
+                            className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-black ${
+                              !c.sales_id
+                                ? "border-rose-200 bg-rose-50 text-rose-600 shadow-sm shadow-rose-100"
+                                : "border-blue-100 bg-blue-50 text-blue-600"
+                            }`}
+                          >
+                            {getUserNameById(c.sales_id)}
+                          </span>
+                        </button>
                         <button type="button" onClick={() => openModal(c)} className="text-center flex flex-col">
                           <span className="text-xs font-semibold text-slate-700">{salesDatePart}</span>
                           {salesTimePart && <span className="mt-0.5 text-[10px] font-black text-violet-500">{salesTimePart}</span>}

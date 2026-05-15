@@ -30,8 +30,23 @@ export async function GET(request: Request) {
     const from = searchParams.get("from") || "";
     const to = searchParams.get("to") || "";
 
+    let customerQuery = supabase
+      .from("customers")
+      .select("*")
+      .range(0, 9999);
+
+    // 핵심 수정: 대시보드 집계 기준을 영업일(sales_date)로 DB 조회 단계에서 필터링
+    // 기존처럼 전체 조회 후 JS에서 필터링하면 Supabase 1,000건 제한 때문에 누락될 수 있음
+    if (from) {
+      customerQuery = customerQuery.gte("sales_date", `${from} 00:00:00`);
+    }
+
+    if (to) {
+      customerQuery = customerQuery.lt("sales_date", `${getNextDate(to)} 00:00:00`);
+    }
+
     const [cRes, uRes, groupRes] = await Promise.all([
-      supabase.from("customers").select("*"),
+      customerQuery,
       supabase.from("users").select("id, name, role_id"),
       supabase
         .from("code_groups")
@@ -43,12 +58,16 @@ export async function GET(request: Request) {
     if (uRes.error) throw uRes.error;
     if (groupRes.error) throw groupRes.error;
 
-    const allCustomers = cRes.data || [];
+    const filtered = cRes.data || [];
     const users = uRes.data || [];
     const groups = groupRes.data || [];
 
-    const consultGroup = groups.find((g: any) => g.group_code === "CONSULT_STATUS");
-    const salesGroup = groups.find((g: any) => g.group_code === "SALES_STATUS");
+    const consultGroup = groups.find(
+      (g: any) => g.group_code === "CONSULT_STATUS"
+    );
+    const salesGroup = groups.find(
+      (g: any) => g.group_code === "SALES_STATUS"
+    );
 
     const consultDetails = [...(consultGroup?.code_details || [])].sort(
       (a: any, b: any) => Number(a.sort_order || 0) - Number(b.sort_order || 0)
@@ -73,12 +92,16 @@ export async function GET(request: Request) {
     );
 
     const consultHeaders = [
-      ...consultDetails.map((d: any) => String(d.code_name || "").trim()).filter(Boolean),
+      ...consultDetails
+        .map((d: any) => String(d.code_name || "").trim())
+        .filter(Boolean),
       "미지정",
     ];
 
     const salesHeaders = [
-      ...salesDetails.map((d: any) => String(d.code_name || "").trim()).filter(Boolean),
+      ...salesDetails
+        .map((d: any) => String(d.code_name || "").trim())
+        .filter(Boolean),
       "미지정",
     ];
 
@@ -93,23 +116,6 @@ export async function GET(request: Request) {
       if (text === "미지정") return "미지정";
       return salesCodeToName[text] || text;
     };
-
-    let filtered = allCustomers;
-
-    if (from) {
-      filtered = filtered.filter((c: any) => {
-        if (!c.receipt_date) return false;
-        return String(c.receipt_date) >= from;
-      });
-    }
-
-    if (to) {
-      const nextDate = getNextDate(to);
-      filtered = filtered.filter((c: any) => {
-        if (!c.receipt_date) return false;
-        return String(c.receipt_date) < nextDate;
-      });
-    }
 
     const tmStats: Record<string, any> = {};
     const salesStats: Record<string, any> = {};
@@ -141,7 +147,12 @@ export async function GET(request: Request) {
 
         const status = normalizeConsultStatus(c.consult_status);
 
-        if (Object.prototype.hasOwnProperty.call(tmStats[c.tm_id].statusCounts, status)) {
+        if (
+          Object.prototype.hasOwnProperty.call(
+            tmStats[c.tm_id].statusCounts,
+            status
+          )
+        ) {
           tmStats[c.tm_id].statusCounts[status] += 1;
         } else {
           tmStats[c.tm_id].statusCounts["미지정"] += 1;
@@ -154,7 +165,12 @@ export async function GET(request: Request) {
 
         const status = normalizeSalesStatus(c.sales_status);
 
-        if (Object.prototype.hasOwnProperty.call(salesStats[c.sales_id].statusCounts, status)) {
+        if (
+          Object.prototype.hasOwnProperty.call(
+            salesStats[c.sales_id].statusCounts,
+            status
+          )
+        ) {
           salesStats[c.sales_id].statusCounts[status] += 1;
         } else {
           salesStats[c.sales_id].statusCounts["미지정"] += 1;

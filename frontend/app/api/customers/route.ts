@@ -18,6 +18,10 @@ const emptyToNull = (value: unknown) => {
   return text === "" ? null : value;
 };
 
+const getTodayDate = () => {
+  return new Date().toISOString().split("T")[0];
+};
+
 const buildCreatePayload = (body: any) => {
   const consultStatus =
     typeof body.consult_status === "string" && body.consult_status.trim() !== ""
@@ -64,6 +68,7 @@ export async function GET(request: Request) {
 
     const limit =
       Number.isFinite(limitParam) && limitParam > 0 ? limitParam : 10;
+
     const offset =
       Number.isFinite(offsetParam) && offsetParam >= 0 ? offsetParam : 0;
 
@@ -187,6 +192,11 @@ export async function PATCH(request: Request) {
       [column]: updateValue,
     };
 
+    // 상담사 일괄 배정 시 상담 날짜를 당일로 자동 설정
+    if (type === "TM" && updateValue) {
+      updatePayload.consult_date = getTodayDate();
+    }
+
     // 영업자 일괄 배정 시에만 영업 상태를 "방문 전"으로 자동 설정
     if (type === "SALES" && updateValue) {
       updatePayload.sales_status = "방문 전";
@@ -218,7 +228,10 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const { error } = await supabase.from("customers").delete().in("id", ids);
+    const { error } = await supabase
+      .from("customers")
+      .delete()
+      .in("id", ids);
 
     if (error) throw error;
 

@@ -27,52 +27,85 @@ function normalizeText(value: unknown) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+
     const from = searchParams.get("from") || "";
     const to = searchParams.get("to") || "";
 
-    let customerQuery = supabase
+    // 상담사 집계용 (상담일 기준)
+    let consultQuery = supabase
+      .from("customers")
+      .select("*")
+      .range(0, 9999);
+
+    // 영업 집계용 (영업일 기준)
+    let salesQuery = supabase
       .from("customers")
       .select("*")
       .range(0, 9999);
 
     if (from) {
-      customerQuery = customerQuery.gte("sales_date", `${from} 00:00:00`);
+      consultQuery = consultQuery.gte(
+        "consult_date",
+        `${from} 00:00:00`
+      );
+
+      salesQuery = salesQuery.gte(
+        "sales_date",
+        `${from} 00:00:00`
+      );
     }
 
     if (to) {
-      customerQuery = customerQuery.lt("sales_date", `${getNextDate(to)} 00:00:00`);
+      consultQuery = consultQuery.lt(
+        "consult_date",
+        `${getNextDate(to)} 00:00:00`
+      );
+
+      salesQuery = salesQuery.lt(
+        "sales_date",
+        `${getNextDate(to)} 00:00:00`
+      );
     }
 
-    const [cRes, uRes, groupRes] = await Promise.all([
-      customerQuery,
+    const [consultRes, salesRes, uRes, groupRes] = await Promise.all([
+      consultQuery,
+      salesQuery,
       supabase.from("users").select("id, name, role_id"),
       supabase
         .from("code_groups")
-        .select("group_code, code_details(code_name, code_value, sort_order)")
+        .select(
+          "group_code, code_details(code_name, code_value, sort_order)"
+        )
         .in("group_code", ["CONSULT_STATUS", "SALES_STATUS"]),
     ]);
 
-    if (cRes.error) throw cRes.error;
+    if (consultRes.error) throw consultRes.error;
+    if (salesRes.error) throw salesRes.error;
     if (uRes.error) throw uRes.error;
     if (groupRes.error) throw groupRes.error;
 
-    const filtered = cRes.data || [];
+    const consultFiltered = consultRes.data || [];
+    const salesFiltered = salesRes.data || [];
+
     const users = uRes.data || [];
     const groups = groupRes.data || [];
 
     const consultGroup = groups.find(
       (g: any) => g.group_code === "CONSULT_STATUS"
     );
+
     const salesGroup = groups.find(
       (g: any) => g.group_code === "SALES_STATUS"
     );
 
     const consultDetails = [...(consultGroup?.code_details || [])].sort(
-      (a: any, b: any) => Number(a.sort_order || 0) - Number(b.sort_order || 0)
+      (a: any, b: any) =>
+        Number(a.sort_order || 0) - Number(b.sort_order || 0)
     );
 
     const salesDetails = [...(salesGroup?.code_details || [])].sort(
-      (a: any, b: any) => Number(a.sort_order || 0) - Number(b.sort_order || 0)
+      (a: any, b: any) =>
+        Number(a.sort_order || 0) - Number(b.sort_order || 0)
     );
 
     const consultCodeToName = Object.fromEntries(
@@ -111,8 +144,7 @@ export async function GET(request: Request) {
     const normalizeConsultStatus = (value: unknown) => {
       const raw = String(value || "").trim();
 
-      // 핵심 수정:
-      // TM이 배정된 고객인데 상담 상태가 비어 있으면 미지정이 아니라 대기로 집계
+      // 상담사 배정은 되어 있는데 상태가 없으면 대기 처리
       if (!raw) return "대기";
 
       return consultCodeToName[raw] || raw;
@@ -120,7 +152,9 @@ export async function GET(request: Request) {
 
     const normalizeSalesStatus = (value: unknown) => {
       const text = normalizeText(value);
+
       if (text === "미지정") return "미지정";
+
       return salesCodeToName[text] || text;
     };
 
@@ -133,7 +167,9 @@ export async function GET(request: Request) {
           id: u.id,
           name: u.name,
           total: 0,
-          statusCounts: Object.fromEntries(consultHeaders.map((h) => [h, 0])),
+          statusCounts: Object.fromEntries(
+            consultHeaders.map((h) => [h, 0])
+          ),
         };
       }
 
@@ -143,16 +179,21 @@ export async function GET(request: Request) {
           name: u.name,
           total: 0,
           commission: 0,
-          statusCounts: Object.fromEntries(salesHeaders.map((h) => [h, 0])),
+          statusCounts: Object.fromEntries(
+            salesHeaders.map((h) => [h, 0])
+          ),
         };
       }
     });
 
-    filtered.forEach((c: any) => {
+    // 상담사 집계 (consult_date 기준)
+    consultFiltered.forEach((c: any) => {
       if (c.tm_id && tmStats[c.tm_id]) {
         tmStats[c.tm_id].total += 1;
 
-        const status = normalizeConsultStatus(c.consult_status);
+        const status = normalizeConsultStatus(
+          c.consult_status
+        );
 
         if (
           Object.prototype.hasOwnProperty.call(
@@ -165,12 +206,20 @@ export async function GET(request: Request) {
           tmStats[c.tm_id].statusCounts["미지정"] += 1;
         }
       }
+    });
 
+    // 영업 집계 (sales_date 기준)
+    salesFiltered.forEach((c: any) => {
       if (c.sales_id && salesStats[c.sales_id]) {
         salesStats[c.sales_id].total += 1;
-        salesStats[c.sales_id].commission += Number(c.sales_commission || 0);
 
-        const status = normalizeSalesStatus(c.sales_status);
+        salesStats[c.sales_id].commission += Number(
+          c.sales_commission || 0
+        );
+
+        const status = normalizeSalesStatus(
+          c.sales_status
+        );
 
         if (
           Object.prototype.hasOwnProperty.call(
@@ -187,16 +236,27 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       summary: {
-        total: filtered.length,
-        unassignedTM: filtered.filter((c: any) => !c.tm_id).length,
-        unassignedSales: filtered.filter((c: any) => !c.sales_id).length,
-        totalCommission: filtered.reduce(
-          (acc: number, cur: any) => acc + Number(cur.sales_commission || 0),
+        // 상단 카드들은 영업 기준 유지
+        total: salesFiltered.length,
+
+        unassignedTM: salesFiltered.filter(
+          (c: any) => !c.tm_id
+        ).length,
+
+        unassignedSales: salesFiltered.filter(
+          (c: any) => !c.sales_id
+        ).length,
+
+        totalCommission: salesFiltered.reduce(
+          (acc: number, cur: any) =>
+            acc + Number(cur.sales_commission || 0),
           0
         ),
       },
+
       tmList: Object.values(tmStats),
       salesList: Object.values(salesStats),
+
       headers: {
         consult: consultHeaders,
         sales: salesHeaders,
@@ -204,6 +264,10 @@ export async function GET(request: Request) {
     });
   } catch (err) {
     console.error("API 집계 에러:", err);
-    return NextResponse.json({ error: "API 집계 에러" }, { status: 500 });
+
+    return NextResponse.json(
+      { error: "API 집계 에러" },
+      { status: 500 }
+    );
   }
 }

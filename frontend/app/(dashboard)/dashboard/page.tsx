@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   RotateCw,
-  TrendingUp,
   Mic,
   BriefcaseBusiness,
   CalendarDays,
@@ -75,7 +74,7 @@ export default function DashboardPage() {
             </h1>
 
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 opacity-80 sm:text-sm sm:tracking-[0.15em]">
-              Business Performance Analytics
+              상담사 현황은 상담일자 기준 · 영업 실적은 영업일자 기준
             </p>
           </div>
 
@@ -134,6 +133,16 @@ export default function DashboardPage() {
           </div>
         </header>
 
+        {/* 기준 안내 */}
+        <section className="grid gap-3 lg:grid-cols-2">
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-xs font-bold text-indigo-700">
+            상담사별 업무 현황은 선택한 기간의 <span className="font-black">상담일자</span> 기준으로 집계됩니다.
+          </div>
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-xs font-bold text-emerald-700">
+            영업사원별 실적과 매출은 선택한 기간의 <span className="font-black">영업일자</span> 기준으로 집계됩니다.
+          </div>
+        </section>
+
         {/* 요약 카드 */}
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
@@ -187,14 +196,19 @@ export default function DashboardPage() {
 
         {/* 상담사 현황 */}
         <section className="space-y-4 sm:space-y-5">
-          <div className="flex items-center gap-2 px-1 sm:gap-2.5 sm:px-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 shadow-inner">
-              <Mic className="h-4 w-4 text-indigo-600" />
-            </div>
+          <div className="flex flex-col gap-1 px-1 sm:px-2">
+            <div className="flex items-center gap-2 sm:gap-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 shadow-inner">
+                <Mic className="h-4 w-4 text-indigo-600" />
+              </div>
 
-            <h2 className="text-lg font-extrabold tracking-tight text-slate-800 sm:text-xl">
-              상담사별 업무 현황
-            </h2>
+              <h2 className="text-lg font-extrabold tracking-tight text-slate-800 sm:text-xl">
+                상담사별 업무 현황
+              </h2>
+            </div>
+            <p className="pl-9 text-xs font-bold text-slate-400">
+              선택 기간 내 상담일자 기준
+            </p>
           </div>
 
           {data.tmList.map((tm: any, i: number) => (
@@ -271,14 +285,19 @@ export default function DashboardPage() {
 
         {/* 영업 현황 */}
         <section className="space-y-4 sm:space-y-5">
-          <div className="flex items-center gap-2 px-1 sm:gap-2.5 sm:px-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 shadow-inner">
-              <BriefcaseBusiness className="h-4 w-4 text-emerald-600" />
-            </div>
+          <div className="flex flex-col gap-1 px-1 sm:px-2">
+            <div className="flex items-center gap-2 sm:gap-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 shadow-inner">
+                <BriefcaseBusiness className="h-4 w-4 text-emerald-600" />
+              </div>
 
-            <h2 className="text-lg font-extrabold tracking-tight text-slate-800 sm:text-xl">
-              영업사원별 실적 그리드
-            </h2>
+              <h2 className="text-lg font-extrabold tracking-tight text-slate-800 sm:text-xl">
+                영업사원별 실적 그리드
+              </h2>
+            </div>
+            <p className="pl-9 text-xs font-bold text-slate-400">
+              선택 기간 내 영업일자 기준
+            </p>
           </div>
 
           {data.salesList.map((sales: any, i: number) => (

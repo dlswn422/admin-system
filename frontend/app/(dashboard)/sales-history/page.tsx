@@ -825,6 +825,41 @@ export default function SalesManagementPage() {
                       </div>
                     </div>
                   </div>
+
+                  <div className="rounded-[20px] border border-blue-100 bg-blue-50/20 p-4">
+                    <h3 className="mb-3 flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-blue-700">
+                      <UserCheck className="h-4 w-4" /> 상담 정보
+                    </h3>
+
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="ml-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          상담사
+                        </label>
+                        <div className="flex h-9 items-center rounded-lg border border-blue-100 bg-white px-3 text-xs font-black text-blue-700">
+                          {users.find(u => u.id === formData.tm_id)?.name || "미배정"}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="ml-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          상담 상태
+                        </label>
+                        <div className="flex h-9 items-center rounded-lg border border-blue-100 bg-white px-3 text-xs font-black text-slate-900">
+                          {formData.consult_status || "미지정"}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="ml-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          상담 메모
+                        </label>
+                        <div className="min-h-[68px] rounded-lg border border-blue-100 bg-white p-2.5 text-xs font-bold leading-5 text-slate-700 whitespace-pre-wrap">
+                          {formData.consult_memo || "기록 없음"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </section>
 
                 <section className="space-y-3">

@@ -1055,8 +1055,8 @@ export default function CustomersPage() {
           </div>
         </div>
 
-        <div className="px-4 py-4 md:px-6 md:py-5 overflow-hidden">
-          <div className="w-full space-y-3">
+        <div className="overflow-x-auto overscroll-x-contain px-4 py-4 pb-6 md:px-6 md:py-5 [WebkitOverflowScrolling:touch]">
+          <div className="min-w-[1280px] space-y-3">
             {isLoading ? (
               [1, 2, 3, 4].map((i) => <div key={i} className="h-24 rounded-[24px] border border-slate-100 bg-slate-50/80 animate-pulse" />)
             ) : (

@@ -385,6 +385,45 @@ export default function SalesManagementPage() {
     );
   }, [salesCodes, currentUser]);
 
+
+  const getSalesStatusTone = useCallback((value?: string | null) => {
+    const status = String(value || "").trim();
+
+    if (["승인", "계약완료"].includes(status)) {
+      return "border-red-200 bg-red-50 text-red-700 shadow-sm shadow-red-100";
+    }
+
+    if (["거절", "조회거절"].includes(status)) {
+      return "border-slate-900 bg-slate-900 text-white font-black shadow-sm shadow-slate-200";
+    }
+
+    if (status === "관리") {
+      return "border-sky-200 bg-sky-50 text-sky-700 shadow-sm shadow-sky-100";
+    }
+
+    if (status === "조회요청") {
+      return "border-amber-800/30 bg-amber-100 text-amber-900 shadow-sm shadow-amber-100";
+    }
+
+    if (status === "결재대기") {
+      return "border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-100";
+    }
+
+    if (status === "정산완료") {
+      return "border-lime-200 bg-lime-50 text-lime-700 shadow-sm shadow-lime-100";
+    }
+
+    if (status === "정산대기") {
+      return "border-yellow-200 bg-yellow-50 text-yellow-700 shadow-sm shadow-yellow-100";
+    }
+
+    if (["수금대기", "분납"].includes(status)) {
+      return "border-orange-200 bg-orange-50 text-orange-700 shadow-sm shadow-orange-100";
+    }
+
+    return "border-emerald-100 bg-emerald-50 text-emerald-600";
+  }, []);
+
   const totalPages = Math.max(1, Math.ceil(customers.length / itemsPerPage));
 
   // 데이터 개수 변경으로 현재 페이지가 총 페이지보다 커졌을 때 보정
@@ -637,7 +676,9 @@ export default function SalesManagementPage() {
                       {users.find(u => u.id === c.sales_id)?.name || "미배정"}
                     </div>
                     <div className="flex justify-center">
-                      <span className="px-4 py-1.5 rounded-full border text-[10px] font-black bg-emerald-50 text-emerald-600">
+                      <span
+                        className={`px-4 py-1.5 rounded-full border text-[10px] font-black ${getSalesStatusTone(c.sales_status)}`}
+                      >
                         {c.sales_status || "진행중"}
                       </span>
                     </div>

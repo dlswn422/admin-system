@@ -35,8 +35,6 @@ export async function GET(request: Request) {
       .select("*")
       .range(0, 9999);
 
-    // 핵심 수정: 대시보드 집계 기준을 영업일(sales_date)로 DB 조회 단계에서 필터링
-    // 기존처럼 전체 조회 후 JS에서 필터링하면 Supabase 1,000건 제한 때문에 누락될 수 있음
     if (from) {
       customerQuery = customerQuery.gte("sales_date", `${from} 00:00:00`);
     }
@@ -91,24 +89,33 @@ export async function GET(request: Request) {
       ])
     );
 
-    const consultHeaders = [
-      ...consultDetails
-        .map((d: any) => String(d.code_name || "").trim())
-        .filter(Boolean),
-      "미지정",
-    ];
+    const consultHeaders = Array.from(
+      new Set([
+        ...consultDetails
+          .map((d: any) => String(d.code_name || "").trim())
+          .filter(Boolean),
+        "대기",
+        "미지정",
+      ])
+    );
 
-    const salesHeaders = [
-      ...salesDetails
-        .map((d: any) => String(d.code_name || "").trim())
-        .filter(Boolean),
-      "미지정",
-    ];
+    const salesHeaders = Array.from(
+      new Set([
+        ...salesDetails
+          .map((d: any) => String(d.code_name || "").trim())
+          .filter(Boolean),
+        "미지정",
+      ])
+    );
 
     const normalizeConsultStatus = (value: unknown) => {
-      const text = normalizeText(value);
-      if (text === "미지정") return "미지정";
-      return consultCodeToName[text] || text;
+      const raw = String(value || "").trim();
+
+      // 핵심 수정:
+      // TM이 배정된 고객인데 상담 상태가 비어 있으면 미지정이 아니라 대기로 집계
+      if (!raw) return "대기";
+
+      return consultCodeToName[raw] || raw;
     };
 
     const normalizeSalesStatus = (value: unknown) => {

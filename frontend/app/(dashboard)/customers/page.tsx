@@ -111,6 +111,7 @@ export default function CustomersPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
+  const [searchInput, setSearchInput] = useState(INITIAL_FILTERS.search);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -300,8 +301,21 @@ export default function CustomersPage() {
   const resetFilters = useCallback(() => {
     setCurrentPage(1);
     setSelectedIds([]);
+    setSearchInput(INITIAL_FILTERS.search);
     setFilters(INITIAL_FILTERS);
   }, []);
+
+  // 검색어는 타이핑할 때마다 즉시 조회하지 않고, 입력이 잠시 멈춘 뒤 한 번만 조회합니다.
+  // 이 처리로 대표자명/업체명 검색 중 목록이 여러 번 깜빡이는 현상을 줄입니다.
+  useEffect(() => {
+    if (searchInput === filters.search) return;
+
+    const timer = window.setTimeout(() => {
+      updateFilter({ search: searchInput });
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [searchInput, filters.search, updateFilter]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -981,7 +995,7 @@ export default function CustomersPage() {
             <input type="date" value={filters.date_to} onChange={(e) => updateFilter({ date_to: e.target.value })} className="h-14 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 text-sm font-semibold text-slate-900 outline-none" />
             <div className="relative self-start group">
               <Search className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-300" />
-              <input value={filters.search} onChange={(e) => updateFilter({ search: e.target.value })} placeholder="업체명, 대표자, 연락처 검색" className="h-14 w-full rounded-[20px] border border-slate-200/80 bg-slate-50/80 pl-12 pr-5 text-sm font-semibold text-slate-900 outline-none" />
+              <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="업체명, 대표자, 연락처 검색" className="h-14 w-full rounded-[20px] border border-slate-200/80 bg-slate-50/80 pl-12 pr-5 text-sm font-semibold text-slate-900 outline-none" />
             </div>
           </div>
           <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-1">

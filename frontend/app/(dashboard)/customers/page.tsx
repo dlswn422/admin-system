@@ -129,6 +129,7 @@ export default function CustomersPage() {
   const [isBulkDeleteMode, setIsBulkDeleteMode] = useState(false);
 
   const [recordings, setRecordings] = useState<RecordingItem[]>([]);
+  const [pendingRecordingFiles, setPendingRecordingFiles] = useState<File[]>([]);
   const [isRecordingsLoading, setIsRecordingsLoading] = useState(false);
   const [isUploadingRecording, setIsUploadingRecording] = useState(false);
   const [deletingRecordingId, setDeletingRecordingId] = useState<string | null>(null);
@@ -664,6 +665,7 @@ export default function CustomersPage() {
     }
 
     setRecordings([]);
+    setPendingRecordingFiles([]);
     setIsModalOpen(true);
 
     if (customer?.id) {
@@ -724,20 +726,26 @@ export default function CustomersPage() {
   };
 
   const handleRecordingUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    // 신규 고객 등록 모드에서는 아직 customer_id가 없으므로 파일을 임시 보관했다가
+    // 고객 저장 성공 후 생성된 customer_id로 업로드합니다.
     if (!selectedCustomer?.id) {
-      showToast("기존 고객 상세에서만 녹취 업로드가 가능합니다.", "error");
-      e.target.value = "";
+      setPendingRecordingFiles((prev) => [...prev, ...files]);
+      showToast(`${files.length}개 녹취 파일이 임시 추가되었습니다. 저장 시 함께 업로드됩니다.`);
+      if (recordingInputRef.current) recordingInputRef.current.value = "";
       return;
     }
 
     try {
       setIsUploadingRecording(true);
 
-      await uploadRecordingFile(file, selectedCustomer.id);
+      for (const file of files) {
+        await uploadRecordingFile(file, selectedCustomer.id);
+      }
 
-      showToast("녹취 파일이 업로드되었습니다.");
+      showToast(`${files.length}개 녹취 파일이 업로드되었습니다.`);
       await fetchRecordings(selectedCustomer.id);
     } catch (error) {
       showToast(error instanceof Error ? error.message : "녹취 업로드 실패", "error");
@@ -745,6 +753,10 @@ export default function CustomersPage() {
       setIsUploadingRecording(false);
       if (recordingInputRef.current) recordingInputRef.current.value = "";
     }
+  };
+
+  const removePendingRecordingFile = (index: number) => {
+    setPendingRecordingFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleRecordingDelete = async (recordingId: string) => {
@@ -820,8 +832,28 @@ export default function CustomersPage() {
         throw new Error(data?.error || "저장 실패");
       }
 
+      // 신규 고객 등록 시에는 고객 ID가 생성된 이후 임시 보관한 녹취 파일을 업로드합니다.
+      const savedCustomerId = selectedCustomer?.id || data?.id;
+      let uploadedRecordingCount = 0;
+
+      if (!selectedCustomer && pendingRecordingFiles.length > 0) {
+        if (!savedCustomerId) {
+          throw new Error("고객은 저장되었지만 녹취 업로드를 위한 고객 ID를 확인하지 못했습니다.");
+        }
+
+        for (const file of pendingRecordingFiles) {
+          await uploadRecordingFile(file, savedCustomerId);
+          uploadedRecordingCount += 1;
+        }
+      }
+
       setIsModalOpen(false);
-      showToast("저장되었습니다.");
+      setPendingRecordingFiles([]);
+      showToast(
+        uploadedRecordingCount > 0
+          ? `저장되었습니다. 녹취 파일 ${uploadedRecordingCount}개도 함께 업로드되었습니다.`
+          : "저장되었습니다."
+      );
       await fetchData();
     } catch (error) {
       showToast(error instanceof Error ? error.message : "저장 실패", "error");
@@ -878,7 +910,7 @@ export default function CustomersPage() {
   return (
     <div className="mx-auto max-w-[1600px] space-y-8 pb-20 px-4 md:px-0">
       <input ref={excelInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelUpload} />
-      <input ref={recordingInputRef} type="file" accept="*/*" className="hidden" onChange={handleRecordingUpload} />
+      <input ref={recordingInputRef} type="file" accept="*/*" multiple className="hidden" onChange={handleRecordingUpload} />
 
       {toast && (
         <div
@@ -1256,18 +1288,53 @@ export default function CustomersPage() {
                     </label>
                     <div className="rounded-[18px] border border-dashed border-slate-200 bg-white px-4 py-4 flex flex-col justify-center">
                       <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">녹취 업로드</div>
-                      <button type="button" onClick={() => recordingInputRef.current?.click()} disabled={!selectedCustomer || isUploadingRecording} className="mt-2 inline-flex h-11 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-700 transition-all">
+                      <button type="button" onClick={() => recordingInputRef.current?.click()} disabled={isUploadingRecording} className="mt-2 inline-flex h-11 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-700 transition-all disabled:cursor-not-allowed disabled:opacity-60">
                         {isUploadingRecording ? <LoadingSpinner /> : <Upload className="h-4 w-4" />}
-                        {isUploadingRecording ? "업로드 중..." : "파일 업로드"}
+                        {isUploadingRecording
+                          ? "업로드 중..."
+                          : selectedCustomer
+                          ? "파일 업로드"
+                          : "파일 선택"}
                       </button>
+                      {!selectedCustomer && (
+                        <p className="mt-2 text-[11px] font-bold leading-4 text-slate-400">
+                          신규 고객은 저장 버튼을 누르면 선택한 녹취 파일이 함께 업로드됩니다.
+                        </p>
+                      )}
                     </div>
                     <label className="space-y-2 md:col-span-2 xl:col-span-3"><span className="text-sm font-bold text-slate-700">상담 메모</span>
                       <textarea value={formData.consult_memo || ""} onChange={(e) => setFormData({ ...formData, consult_memo: e.target.value })} className="min-h-[110px] w-full rounded-[18px] border border-slate-200 bg-white px-4 py-4 text-sm font-semibold text-slate-900 outline-none" />
                     </label>
                     <div className="md:col-span-2 xl:col-span-3">
                       <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-                        <div className="mb-4 flex items-center justify-between gap-3"><div className="text-sm font-black text-slate-900">상담 녹취 파일 목록</div><div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{recordings.length}개 파일</div></div>
-                        {isRecordingsLoading ? (<div className="h-20 animate-pulse bg-slate-50 rounded-2xl" />) : recordings.length > 0 ? (
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                          <div className="text-sm font-black text-slate-900">상담 녹취 파일 목록</div>
+                          <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                            {selectedCustomer ? recordings.length : pendingRecordingFiles.length}개 파일
+                          </div>
+                        </div>
+                        {!selectedCustomer ? (
+                          pendingRecordingFiles.length > 0 ? (
+                            <div className="space-y-2">
+                              {pendingRecordingFiles.map((file, index) => (
+                                <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50/40 px-4 py-3">
+                                  <div className="flex min-w-0 items-center gap-3 overflow-hidden">
+                                    <FileAudio className="h-4 w-4 flex-none text-emerald-500" />
+                                    <div className="min-w-0">
+                                      <div className="truncate text-xs font-black text-slate-700">{file.name}</div>
+                                      <div className="text-[10px] font-bold text-emerald-600">저장 시 업로드 예정</div>
+                                    </div>
+                                  </div>
+                                  <button type="button" onClick={() => removePendingRecordingFile(index)} className="p-2 text-slate-400 transition-all hover:text-rose-500">
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-6 text-xs font-bold text-slate-400 italic">선택된 파일이 없습니다. 파일 선택 후 저장하면 함께 업로드됩니다.</div>
+                          )
+                        ) : isRecordingsLoading ? (<div className="h-20 animate-pulse bg-slate-50 rounded-2xl" />) : recordings.length > 0 ? (
                           <div className="space-y-2">
                             {recordings.map((recording) => (
                               <div key={recording.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/50 px-4 py-3">

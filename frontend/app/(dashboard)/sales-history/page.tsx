@@ -389,7 +389,7 @@ export default function SalesManagementPage() {
   const getSalesStatusTone = useCallback((value?: string | null) => {
     const status = String(value || "").trim();
 
-    if (["승인", "계약완료"].includes(status)) {
+    if (["승인", "계약 완료"].includes(status)) {
       return "border-red-200 bg-red-50 text-red-700 shadow-sm shadow-red-100";
     }
 
@@ -401,23 +401,23 @@ export default function SalesManagementPage() {
       return "border-sky-200 bg-sky-50 text-sky-700 shadow-sm shadow-sky-100";
     }
 
-    if (status === "조회요청") {
+    if (status === "조회 요청") {
       return "border-amber-800/30 bg-amber-100 text-amber-900 shadow-sm shadow-amber-100";
     }
 
-    if (status === "결재대기") {
+    if (status === "결제 대기") {
       return "border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-100";
     }
 
-    if (status === "정산완료") {
+    if (status === "정산 완료") {
       return "border-lime-200 bg-lime-50 text-lime-700 shadow-sm shadow-lime-100";
     }
 
-    if (status === "정산대기") {
+    if (status === "정산 대기") {
       return "border-yellow-200 bg-yellow-50 text-yellow-700 shadow-sm shadow-yellow-100";
     }
 
-    if (["수금대기", "분납"].includes(status)) {
+    if (["수금 대기", "분납"].includes(status)) {
       return "border-orange-200 bg-orange-50 text-orange-700 shadow-sm shadow-orange-100";
     }
 

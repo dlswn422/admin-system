@@ -24,6 +24,41 @@ function normalizeText(value: unknown) {
   return text === "" ? "미지정" : text;
 }
 
+async function fetchCustomersByDateRange(column: string, from: string, to: string) {
+  const pageSize = 1000;
+  let fromIndex = 0;
+  let allRows: any[] = [];
+
+  while (true) {
+    let query = supabase
+      .from("customers")
+      .select("*")
+      .order(column, { ascending: true, nullsFirst: false })
+      .range(fromIndex, fromIndex + pageSize - 1);
+
+    if (from) {
+      query = query.gte(column, from);
+    }
+
+    if (to) {
+      query = query.lt(column, getNextDate(to));
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    const rows = data || [];
+    allRows = [...allRows, ...rows];
+
+    if (rows.length < pageSize) break;
+
+    fromIndex += pageSize;
+  }
+
+  return allRows;
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -31,61 +66,18 @@ export async function GET(request: Request) {
     const from = searchParams.get("from") || "";
     const to = searchParams.get("to") || "";
 
-    // 상담사 집계용 (상담일 기준)
-    let consultQuery = supabase
-      .from("customers")
-      .select("*")
-      .range(0, 9999);
-
-    // 영업 집계용 (영업일 기준)
-    let salesQuery = supabase
-      .from("customers")
-      .select("*")
-      .range(0, 9999);
-
-    if (from) {
-      consultQuery = consultQuery.gte(
-        "consult_date",
-        `${from} 00:00:00`
-      );
-
-      salesQuery = salesQuery.gte(
-        "sales_date",
-        `${from} 00:00:00`
-      );
-    }
-
-    if (to) {
-      consultQuery = consultQuery.lt(
-        "consult_date",
-        `${getNextDate(to)} 00:00:00`
-      );
-
-      salesQuery = salesQuery.lt(
-        "sales_date",
-        `${getNextDate(to)} 00:00:00`
-      );
-    }
-
-    const [consultRes, salesRes, uRes, groupRes] = await Promise.all([
-      consultQuery,
-      salesQuery,
+    const [consultFiltered, salesFiltered, uRes, groupRes] = await Promise.all([
+      fetchCustomersByDateRange("consult_date", from, to),
+      fetchCustomersByDateRange("sales_date", from, to),
       supabase.from("users").select("id, name, role_id"),
       supabase
         .from("code_groups")
-        .select(
-          "group_code, code_details(code_name, code_value, sort_order)"
-        )
+        .select("group_code, code_details(code_name, code_value, sort_order)")
         .in("group_code", ["CONSULT_STATUS", "SALES_STATUS"]),
     ]);
 
-    if (consultRes.error) throw consultRes.error;
-    if (salesRes.error) throw salesRes.error;
     if (uRes.error) throw uRes.error;
     if (groupRes.error) throw groupRes.error;
-
-    const consultFiltered = consultRes.data || [];
-    const salesFiltered = salesRes.data || [];
 
     const users = uRes.data || [];
     const groups = groupRes.data || [];
@@ -144,10 +136,14 @@ export async function GET(request: Request) {
     const normalizeConsultStatus = (value: unknown) => {
       const raw = String(value || "").trim();
 
-      // 상담사 배정은 되어 있는데 상태가 없으면 대기 처리
       if (!raw) return "대기";
+      if (raw === "대기") return "대기";
 
-      return consultCodeToName[raw] || raw;
+      const mapped = consultCodeToName[raw] || raw;
+
+      if (mapped === "대기") return "대기";
+
+      return mapped;
     };
 
     const normalizeSalesStatus = (value: unknown) => {
@@ -167,9 +163,7 @@ export async function GET(request: Request) {
           id: u.id,
           name: u.name,
           total: 0,
-          statusCounts: Object.fromEntries(
-            consultHeaders.map((h) => [h, 0])
-          ),
+          statusCounts: Object.fromEntries(consultHeaders.map((h) => [h, 0])),
         };
       }
 
@@ -179,87 +173,93 @@ export async function GET(request: Request) {
           name: u.name,
           total: 0,
           commission: 0,
-          statusCounts: Object.fromEntries(
-            salesHeaders.map((h) => [h, 0])
-          ),
+          statusCounts: Object.fromEntries(salesHeaders.map((h) => [h, 0])),
         };
       }
     });
 
-    // 상담사 집계 (consult_date 기준)
     consultFiltered.forEach((c: any) => {
-      if (c.tm_id && tmStats[c.tm_id]) {
-        tmStats[c.tm_id].total += 1;
+      if (!c.tm_id) return;
 
-        const status = normalizeConsultStatus(
-          c.consult_status
-        );
+      if (!tmStats[c.tm_id]) {
+        tmStats[c.tm_id] = {
+          id: c.tm_id,
+          name: users.find((u: any) => u.id === c.tm_id)?.name || "미확인 상담사",
+          total: 0,
+          statusCounts: Object.fromEntries(consultHeaders.map((h) => [h, 0])),
+        };
+      }
 
-        if (
-          Object.prototype.hasOwnProperty.call(
-            tmStats[c.tm_id].statusCounts,
-            status
-          )
-        ) {
-          tmStats[c.tm_id].statusCounts[status] += 1;
-        } else {
-          tmStats[c.tm_id].statusCounts["미지정"] += 1;
-        }
+      tmStats[c.tm_id].total += 1;
+
+      const status = normalizeConsultStatus(c.consult_status);
+
+      if (
+        Object.prototype.hasOwnProperty.call(
+          tmStats[c.tm_id].statusCounts,
+          status
+        )
+      ) {
+        tmStats[c.tm_id].statusCounts[status] += 1;
+      } else {
+        tmStats[c.tm_id].statusCounts["미지정"] += 1;
       }
     });
 
-    // 영업 집계 (sales_date 기준)
     salesFiltered.forEach((c: any) => {
-      if (c.sales_id && salesStats[c.sales_id]) {
-        salesStats[c.sales_id].total += 1;
+      if (!c.sales_id) return;
 
-        salesStats[c.sales_id].commission += Number(
-          c.sales_commission || 0
-        );
+      if (!salesStats[c.sales_id]) {
+        salesStats[c.sales_id] = {
+          id: c.sales_id,
+          name: users.find((u: any) => u.id === c.sales_id)?.name || "미확인 영업자",
+          total: 0,
+          commission: 0,
+          statusCounts: Object.fromEntries(salesHeaders.map((h) => [h, 0])),
+        };
+      }
 
-        const status = normalizeSalesStatus(
-          c.sales_status
-        );
+      salesStats[c.sales_id].total += 1;
+      salesStats[c.sales_id].commission += Number(c.sales_commission || 0);
 
-        if (
-          Object.prototype.hasOwnProperty.call(
-            salesStats[c.sales_id].statusCounts,
-            status
-          )
-        ) {
-          salesStats[c.sales_id].statusCounts[status] += 1;
-        } else {
-          salesStats[c.sales_id].statusCounts["미지정"] += 1;
-        }
+      const status = normalizeSalesStatus(c.sales_status);
+
+      if (
+        Object.prototype.hasOwnProperty.call(
+          salesStats[c.sales_id].statusCounts,
+          status
+        )
+      ) {
+        salesStats[c.sales_id].statusCounts[status] += 1;
+      } else {
+        salesStats[c.sales_id].statusCounts["미지정"] += 1;
       }
     });
 
     return NextResponse.json({
       summary: {
-        // 상단 카드들은 영업 기준 유지
         total: salesFiltered.length,
-
-        unassignedTM: salesFiltered.filter(
-          (c: any) => !c.tm_id
-        ).length,
-
-        unassignedSales: salesFiltered.filter(
-          (c: any) => !c.sales_id
-        ).length,
-
+        unassignedTM: salesFiltered.filter((c: any) => !c.tm_id).length,
+        unassignedSales: salesFiltered.filter((c: any) => !c.sales_id).length,
         totalCommission: salesFiltered.reduce(
-          (acc: number, cur: any) =>
-            acc + Number(cur.sales_commission || 0),
+          (acc: number, cur: any) => acc + Number(cur.sales_commission || 0),
           0
         ),
       },
-
       tmList: Object.values(tmStats),
       salesList: Object.values(salesStats),
-
       headers: {
         consult: consultHeaders,
         sales: salesHeaders,
+      },
+      debug: {
+        from,
+        to,
+        consultCount: consultFiltered.length,
+        salesCount: salesFiltered.length,
+        consultPendingTotal: consultFiltered.filter(
+          (c: any) => normalizeConsultStatus(c.consult_status) === "대기"
+        ).length,
       },
     });
   } catch (err) {

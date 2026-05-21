@@ -1159,9 +1159,6 @@ export default function SalesManagementPage() {
                           </span>
                         )}
                       </div>
-                      <div className="text-xs font-bold text-slate-400">
-                        총 {r.count}건의 성과
-                      </div>
                     </div>
                   </div>
 

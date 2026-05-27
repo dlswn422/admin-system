@@ -83,58 +83,92 @@ export async function GET(request: Request) {
       return `${yyyy}-${mm}-${dd}`;
     };
 
-    let query = supabase.from("customers").select("*", { count: "exact" });
-
-    if (search) {
-      query = query.or(
-        `customer_name.ilike.%${search}%,company_name.ilike.%${search}%,mobile_phone.ilike.%${search}%`
-      );
-    }
-
-    if (tm_id === "unassigned") {
-      query = query.is("tm_id", null);
-    } else if (tm_id === "assigned") {
-      query = query.not("tm_id", "is", null);
-    } else if (tm_id !== "all" && tm_id !== "") {
-      query = query.eq("tm_id", tm_id);
-    }
-
-    if (sales_id === "unassigned") {
-      query = query.is("sales_id", null);
-    } else if (sales_id === "assigned") {
-      query = query.not("sales_id", "is", null);
-    } else if (sales_id !== "all" && sales_id !== "") {
-      query = query.eq("sales_id", sales_id);
-    }
-
-    if (consult_status !== "all" && consult_status !== "") {
-      query = query.eq("consult_status", consult_status);
-    }
-
-    if (sales_status !== "all" && sales_status !== "") {
-      query = query.eq("sales_status", sales_status);
-    }
-
     const dateColumn = date_type === "상담일" ? "consult_date" : "sales_date";
 
-    if (date_from) {
-      query = query.gte(dateColumn, date_from);
+    const buildQuery = () => {
+      let query = supabase.from("customers").select("*", { count: "exact" });
+
+      if (search) {
+        query = query.or(
+          `customer_name.ilike.%${search}%,company_name.ilike.%${search}%,mobile_phone.ilike.%${search}%`
+        );
+      }
+
+      if (tm_id === "unassigned") {
+        query = query.is("tm_id", null);
+      } else if (tm_id === "assigned") {
+        query = query.not("tm_id", "is", null);
+      } else if (tm_id !== "all" && tm_id !== "") {
+        query = query.eq("tm_id", tm_id);
+      }
+
+      if (sales_id === "unassigned") {
+        query = query.is("sales_id", null);
+      } else if (sales_id === "assigned") {
+        query = query.not("sales_id", "is", null);
+      } else if (sales_id !== "all" && sales_id !== "") {
+        query = query.eq("sales_id", sales_id);
+      }
+
+      if (consult_status !== "all" && consult_status !== "") {
+        query = query.eq("consult_status", consult_status);
+      }
+
+      if (sales_status !== "all" && sales_status !== "") {
+        query = query.eq("sales_status", sales_status);
+      }
+
+      if (date_from) {
+        query = query.gte(dateColumn, date_from);
+      }
+
+      if (date_to) {
+        const nextDate = getNextDate(date_to);
+        query = query.lt(dateColumn, nextDate);
+      }
+
+      return query.order(dateColumn, {
+        ascending: false,
+        nullsFirst: false,
+      });
+    };
+
+    const batchSize = 1000;
+    const allData: any[] = [];
+    let totalCount = 0;
+    let currentOffset = offset;
+
+    while (allData.length < limit) {
+      const remaining = limit - allData.length;
+      const currentBatchSize = Math.min(batchSize, remaining);
+
+      const from = currentOffset;
+      const to = currentOffset + currentBatchSize - 1;
+
+      const { data, error, count } = await buildQuery().range(from, to);
+
+      if (error) throw error;
+
+      if (typeof count === "number") {
+        totalCount = count;
+      }
+
+      if (!data || data.length === 0) {
+        break;
+      }
+
+      allData.push(...data);
+
+      if (data.length < currentBatchSize) {
+        break;
+      }
+
+      currentOffset += currentBatchSize;
     }
-
-    if (date_to) {
-      const nextDate = getNextDate(date_to);
-      query = query.lt(dateColumn, nextDate);
-    }
-
-    const { data, error, count } = await query
-      .order(dateColumn, { ascending: false, nullsFirst: false })
-      .range(offset, offset + limit - 1);
-
-    if (error) throw error;
 
     return NextResponse.json({
-      data: data || [],
-      totalCount: count || 0,
+      data: allData,
+      totalCount,
     });
   } catch (error: any) {
     console.error("고객 조회 오류:", error);

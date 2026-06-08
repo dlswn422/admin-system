@@ -83,6 +83,10 @@ export default function SalesManagementPage() {
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [salesCodes, setSalesCodes] = useState<CommonCode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRankLoading, setIsRankLoading] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalCompletedCount, setTotalCompletedCount] = useState(0);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [filters, setFilters] = useState<FilterState>({
     date_from: "",
@@ -93,7 +97,7 @@ export default function SalesManagementPage() {
   });
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(500);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRankModalOpen, setIsRankModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -138,58 +142,195 @@ export default function SalesManagementPage() {
     return v === "" ? null : v;
   }, []);
 
+  const buildCustomerParams = useCallback((activeUser: UserInfo, includePaging = true) => {
+    const roleName = activeUser.role_name || (activeUser as any).role;
+    const params = new URLSearchParams({ date_type: "영업일" });
+
+    if (includePaging) {
+      const offset = (currentPage - 1) * itemsPerPage;
+      params.append("limit", String(itemsPerPage));
+      params.append("offset", String(offset));
+    }
+
+    if (filters.date_from) params.append("date_from", filters.date_from);
+    if (filters.date_to) params.append("date_to", filters.date_to);
+    if (debouncedSearch.trim()) params.append("search", debouncedSearch.trim());
+    if (filters.sales_status !== "all") params.append("sales_status", filters.sales_status);
+
+    if (roleName !== "관리자") {
+      params.append("sales_id", String(activeUser.id));
+    } else if (filters.sales_id !== "all") {
+      params.append("sales_id", filters.sales_id);
+    }
+
+    return params;
+  }, [currentPage, itemsPerPage, filters, debouncedSearch]);
+
+  const fetchBaseData = useCallback(async () => {
+    try {
+      const [uRes, sCodeRes] = await Promise.all([
+        fetch("/api/users"),
+        fetch("/api/codes/details/by-group?group_code=SALES_STATUS"),
+      ]);
+
+      if (!uRes.ok || !sCodeRes.ok) {
+        throw new Error("기초 데이터 조회 실패");
+      }
+
+      setUsers(await uRes.json());
+      setSalesCodes(await sCodeRes.json());
+    } catch {
+      showToast("기초 데이터 로드 실패", "error");
+    }
+  }, [showToast]);
+
+  const fetchCompletedCount = useCallback(async (activeUser: UserInfo, filteredTotalCount: number) => {
+    try {
+      if (filters.sales_status !== "all") {
+        setTotalCompletedCount(filters.sales_status.includes("완료") ? filteredTotalCount : 0);
+        return;
+      }
+
+      const completedStatuses = ["계약 완료", "정산 완료"];
+
+      const countResults = await Promise.all(
+        completedStatuses.map(async status => {
+          const params = buildCustomerParams(activeUser, false);
+          params.append("limit", "1");
+          params.append("offset", "0");
+          params.set("sales_status", status);
+
+          const res = await fetch(`/api/customers?${params.toString()}`);
+          const data = await res.json();
+
+          if (!res.ok) return 0;
+
+          return Number(data?.count ?? (Array.isArray(data) ? data.length : data?.data?.length || 0));
+        })
+      );
+
+      setTotalCompletedCount(countResults.reduce((sum, count) => sum + count, 0));
+    } catch {
+      setTotalCompletedCount(0);
+    }
+  }, [buildCustomerParams, filters.sales_status]);
+
   const fetchData = useCallback(async (userOverride?: UserInfo) => {
     const activeUser = userOverride || currentUser;
     if (!activeUser) return;
 
     setIsLoading(true);
+
     try {
-      const roleName = activeUser.role_name || (activeUser as any).role;
-      const listParams = new URLSearchParams({ date_type: "영업일" });
+      // 목록은 현재 페이지에 필요한 데이터만 조회합니다.
+      const listParams = buildCustomerParams(activeUser, true);
 
-      // 중요: API 쪽에서 기본 10개 제한이 걸려있는 경우를 방지하기 위해 충분히 큰 limit 전달
-      // API가 limit 파라미터를 지원하지 않아도 기존 기능에는 영향 없음
-      listParams.append("limit", "10000");
+      // 상단 건수/페이지 계산은 전체 조건 기준으로 별도 조회합니다.
+      // API가 count를 내려주면 count를 사용하고, count가 없으면 응답 data.length로 보정합니다.
+      // 이렇게 해야 현재 페이지 500건만 받아와도 전체 4,000건 기준으로 페이지가 생성됩니다.
+      const countParams = buildCustomerParams(activeUser, false);
+      countParams.append("limit", "10000");
+      countParams.append("offset", "0");
 
-      if (filters.date_from) listParams.append("date_from", filters.date_from);
-      if (filters.date_to) listParams.append("date_to", filters.date_to);
-      if (filters.search) listParams.append("search", filters.search);
-      if (filters.sales_status !== "all") listParams.append("sales_status", filters.sales_status);
+      const [cRes, countRes] = await Promise.all([
+        fetch(`/api/customers?${listParams.toString()}`),
+        fetch(`/api/customers?${countParams.toString()}`),
+      ]);
 
-      if (roleName !== "관리자") {
-        listParams.append("sales_id", String(activeUser.id));
-      } else if (filters.sales_id !== "all") {
-        listParams.append("sales_id", filters.sales_id);
+      const cData = await cRes.json();
+      const countData = await countRes.json();
+
+      if (!cRes.ok) {
+        throw new Error(cData?.error || "데이터 조회 실패");
       }
 
+      if (!countRes.ok) {
+        throw new Error(countData?.error || "전체 건수 조회 실패");
+      }
+
+      const list = Array.isArray(cData) ? cData : cData?.data || [];
+      const countList = Array.isArray(countData) ? countData : countData?.data || [];
+      const count = Number(
+        countData?.count ??
+        cData?.count ??
+        countList.length ??
+        list.length
+      );
+
+      setCustomers(list);
+      setTotalCount(count);
+      await fetchCompletedCount(activeUser, count);
+    } catch {
+      showToast("데이터 로드 실패", "error");
+      setCustomers([]);
+      setTotalCount(0);
+      setTotalCompletedCount(0);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentUser, buildCustomerParams, fetchCompletedCount, showToast]);
+
+  const loadRankData = useCallback(async (userOverride?: UserInfo) => {
+    const activeUser = userOverride || currentUser;
+    if (!activeUser) return;
+
+    setIsRankLoading(true);
+
+    try {
       const rankParams = new URLSearchParams({ date_type: "영업일" });
 
-      // 랭킹도 전체 데이터 기준으로 계산되어야 하므로 동일하게 limit 전달
+      // 랭킹은 전체 기간/조건 기준 집계가 필요하므로 모달을 열 때만 별도 조회합니다.
+      // 초기 목록 조회에서는 제외해서 영업관리 화면 진입 속도를 우선 개선합니다.
       rankParams.append("limit", "10000");
+      rankParams.append("offset", "0");
 
       if (filters.date_from) rankParams.append("date_from", filters.date_from);
       if (filters.date_to) rankParams.append("date_to", filters.date_to);
 
-      const [cRes, rRes, uRes, sCodeRes] = await Promise.all([
-        fetch(`/api/customers?${listParams.toString()}`),
-        fetch(`/api/customers?${rankParams.toString()}`),
-        fetch("/api/users"),
-        fetch("/api/codes/details/by-group?group_code=SALES_STATUS"),
-      ]);
+      const res = await fetch(`/api/customers?${rankParams.toString()}`);
+      const data = await res.json();
 
-      const cData = await cRes.json();
-      const rData = await rRes.json();
+      if (!res.ok) {
+        throw new Error(data?.error || "랭킹 데이터 조회 실패");
+      }
 
-      setCustomers(Array.isArray(cData) ? cData : cData?.data || []);
-      setAllSalesDataForRank(Array.isArray(rData) ? rData : rData?.data || []);
-      setUsers(await uRes.json());
-      setSalesCodes(await sCodeRes.json());
+      setAllSalesDataForRank(Array.isArray(data) ? data : data?.data || []);
     } catch {
-      showToast("데이터 로드 실패", "error");
+      showToast("랭킹 데이터 로드 실패", "error");
+      setAllSalesDataForRank([]);
     } finally {
-      setIsLoading(false);
+      setIsRankLoading(false);
     }
-  }, [filters, currentUser, showToast]);
+  }, [currentUser, filters.date_from, filters.date_to, showToast]);
+
+  const openRankModal = async () => {
+    setIsRankModalOpen(true);
+    await loadRankData();
+  };
+
+  const updateFilters = useCallback((patch: Partial<FilterState>) => {
+    setCurrentPage(1);
+    setFilters(prev => ({ ...prev, ...patch }));
+  }, []);
+
+  const resetFilters = useCallback(() => {
+    setCurrentPage(1);
+    setFilters({
+      date_from: "",
+      date_to: "",
+      search: "",
+      sales_id: isAdmin ? "all" : String(currentUser?.id || ""),
+      sales_status: "all",
+    });
+  }, [isAdmin, currentUser]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(filters.search.trim());
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [filters.search]);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -198,23 +339,32 @@ export default function SalesManagementPage() {
       try {
         const parsedUser = JSON.parse(storedUser);
         setCurrentUser(parsedUser);
-        fetchData(parsedUser);
+        setFilters(prev => ({
+          ...prev,
+          sales_id: (parsedUser.role_name || parsedUser.role) === "관리자" ? prev.sales_id : String(parsedUser.id),
+        }));
+        fetchBaseData();
       } catch {
         window.location.href = "/login";
       }
     } else {
       window.location.href = "/login";
     }
-  }, []);
+  }, [fetchBaseData]);
 
   useEffect(() => {
     if (currentUser) fetchData();
-  }, [filters.date_from, filters.date_to, filters.search, filters.sales_id, filters.sales_status]);
-
-  // 필터가 바뀌면 이전 페이지 번호 때문에 빈 화면이 나오는 것을 방지
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filters.date_from, filters.date_to, filters.search, filters.sales_id, filters.sales_status, itemsPerPage]);
+  }, [
+    currentUser,
+    currentPage,
+    itemsPerPage,
+    filters.date_from,
+    filters.date_to,
+    filters.sales_id,
+    filters.sales_status,
+    debouncedSearch,
+    fetchData,
+  ]);
 
   const fetchRecordings = async (customerId: string) => {
     setIsRecordingsLoading(true);
@@ -370,10 +520,10 @@ export default function SalesManagementPage() {
   }, [users, allSalesDataForRank]);
 
   const stats = useMemo(() => ({
-    total: customers.length,
-    completed: customers.filter(c => c.sales_status?.includes("완료")).length,
+    total: totalCount,
+    completed: totalCompletedCount,
     totalCommission: customers.reduce((sum, c) => sum + Number(c.sales_commission || 0), 0),
-  }), [customers]);
+  }), [customers, totalCount, totalCompletedCount]);
 
   const filteredSalesCodes = useMemo(() => {
     const role = currentUser?.role_name || (currentUser as any)?.role;
@@ -424,22 +574,57 @@ export default function SalesManagementPage() {
     return "border-emerald-100 bg-emerald-50 text-emerald-600";
   }, []);
 
-  const totalPages = Math.max(1, Math.ceil(customers.length / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
 
-  // 데이터 개수 변경으로 현재 페이지가 총 페이지보다 커졌을 때 보정
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
+  // API에서 이미 현재 페이지 데이터만 내려주므로 화면에서는 추가 slice를 하지 않습니다.
+  const paginatedData = customers;
 
-  const paginatedData = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return customers.slice(start, start + itemsPerPage);
-  }, [customers, currentPage, itemsPerPage]);
+  const pageStartItem = totalCount === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const pageEndItem = Math.min(currentPage * itemsPerPage, totalCount);
 
-  const pageStartItem = customers.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
-  const pageEndItem = Math.min(currentPage * itemsPerPage, customers.length);
+  const PaginationControls = () => (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        disabled={currentPage === 1 || totalPages <= 1}
+        onClick={() => setCurrentPage(1)}
+        className="h-11 rounded-xl border-2 border-slate-100 bg-white px-4 text-xs font-black text-slate-500 disabled:opacity-20 hover:bg-slate-50 transition-all"
+        type="button"
+      >
+        처음
+      </button>
+
+      <button
+        disabled={currentPage === 1 || totalPages <= 1}
+        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+        className="p-3 rounded-xl border-2 border-slate-100 bg-white disabled:opacity-20 hover:bg-slate-50 transition-all"
+        type="button"
+      >
+        <ChevronLeft className="h-5 w-5" />
+      </button>
+
+      <div className="px-6 py-3 rounded-xl bg-[#1e232d] text-sm font-black text-white shadow-lg">
+        {currentPage} / {totalPages}
+      </div>
+
+      <button
+        disabled={currentPage === totalPages || totalPages <= 1}
+        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+        className="p-3 rounded-xl border-2 border-slate-100 bg-white disabled:opacity-20 hover:bg-slate-50 transition-all"
+        type="button"
+      >
+        <ChevronRight className="h-5 w-5" />
+      </button>
+
+      <button
+        disabled={currentPage === totalPages || totalPages <= 1}
+        onClick={() => setCurrentPage(totalPages)}
+        className="h-11 rounded-xl border-2 border-slate-100 bg-white px-4 text-xs font-black text-slate-500 disabled:opacity-20 hover:bg-slate-50 transition-all"
+        type="button"
+      >
+        마지막
+      </button>
+    </div>
+  );
 
   if (!currentUser) return null;
 
@@ -501,7 +686,7 @@ export default function SalesManagementPage() {
         ))}
 
         <button
-          onClick={() => setIsRankModalOpen(true)}
+          onClick={openRankModal}
           className="flex items-center justify-between rounded-[28px] border border-rose-100 bg-rose-50/30 p-8 shadow-sm hover:bg-rose-50 transition-all group"
           type="button"
         >
@@ -525,7 +710,7 @@ export default function SalesManagementPage() {
             <input
               type="date"
               value={filters.date_from}
-              onChange={e => setFilters({ ...filters, date_from: e.target.value })}
+              onChange={e => updateFilters({ date_from: e.target.value })}
               className="h-14 rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 focus:border-blue-500 outline-none shadow-inner"
             />
 
@@ -534,7 +719,7 @@ export default function SalesManagementPage() {
             <input
               type="date"
               value={filters.date_to}
-              onChange={e => setFilters({ ...filters, date_to: e.target.value })}
+              onChange={e => updateFilters({ date_to: e.target.value })}
               className="h-14 rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 focus:border-blue-500 outline-none shadow-inner"
             />
 
@@ -542,7 +727,7 @@ export default function SalesManagementPage() {
               <Search className="absolute left-5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400" />
               <input
                 value={filters.search}
-                onChange={e => setFilters({ ...filters, search: e.target.value })}
+                onChange={e => updateFilters({ search: e.target.value })}
                 placeholder="업체명 및 고객명 검색"
                 className="h-14 w-full rounded-2xl border-2 border-slate-200 bg-white pl-12 pr-5 text-sm font-bold text-slate-900 focus:border-blue-500 outline-none shadow-inner"
               />
@@ -554,7 +739,7 @@ export default function SalesManagementPage() {
           <select
             disabled={!isAdmin}
             value={filters.sales_id || "all"}
-            onChange={e => setFilters({ ...filters, sales_id: e.target.value })}
+            onChange={e => updateFilters({ sales_id: e.target.value })}
             className="h-14 rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 focus:border-blue-500 outline-none disabled:bg-slate-50 shadow-inner"
           >
             {isAdmin ? (
@@ -573,7 +758,7 @@ export default function SalesManagementPage() {
 
           <select
             value={filters.sales_status}
-            onChange={e => setFilters({ ...filters, sales_status: e.target.value })}
+            onChange={e => updateFilters({ sales_status: e.target.value })}
             className="h-14 rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 focus:border-blue-500 outline-none shadow-inner"
           >
             <option value="all">영업 상태 전체</option>
@@ -584,24 +769,20 @@ export default function SalesManagementPage() {
 
           <select
             value={itemsPerPage}
-            onChange={e => setItemsPerPage(Number(e.target.value))}
+            onChange={e => {
+              setCurrentPage(1);
+              setItemsPerPage(Number(e.target.value));
+            }}
             className="h-14 rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-slate-900 focus:border-blue-500 outline-none shadow-inner"
           >
             <option value={10}>10개씩 보기</option>
             <option value={50}>50개씩 보기</option>
             <option value={100}>100개씩 보기</option>
+            <option value={500}>500개씩 보기</option>
           </select>
 
           <button
-            onClick={() =>
-              setFilters({
-                date_from: "",
-                date_to: "",
-                search: "",
-                sales_id: isAdmin ? "all" : currentUser.id,
-                sales_status: "all",
-              })
-            }
+            onClick={resetFilters}
             className="h-14 px-8 border-2 border-slate-200 rounded-2xl font-bold text-slate-400 hover:bg-slate-50 transition-all"
             type="button"
           >
@@ -609,12 +790,24 @@ export default function SalesManagementPage() {
           </button>
 
           <div className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-[#1e232d] px-6 text-sm font-bold text-white shadow-lg">
-            <Sparkles className="h-4 w-4 text-blue-400" /> 데이터 {customers.length}건
+            <Sparkles className="h-4 w-4 text-blue-400" /> 데이터 {totalCount}건
           </div>
         </div>
       </section>
 
       <section className="rounded-[30px] border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex flex-col gap-4 border-b border-slate-50 bg-slate-50/30 px-4 py-5 md:px-10 xl:flex-row xl:items-center xl:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+              Total {totalCount} Items
+            </p>
+            <p className="text-xs font-bold text-slate-400">
+              현재 {pageStartItem} - {pageEndItem}건 표시 / {itemsPerPage}개씩 보기
+            </p>
+          </div>
+          <PaginationControls />
+        </div>
+
         <div className="p-4 md:p-8 overflow-x-auto">
           <div className="min-w-[1500px] space-y-3">
             <div className="grid grid-cols-[130px_180px_110px_140px_90px_120px_110px_110px_minmax(200px,1fr)_110px] gap-6 px-8 py-3 text-[11px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
@@ -703,54 +896,14 @@ export default function SalesManagementPage() {
         <div className="px-4 py-6 md:px-10 md:py-8 border-t border-slate-50 flex flex-col gap-4 bg-slate-50/30 xl:flex-row xl:items-center xl:justify-between">
           <div className="space-y-1">
             <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">
-              Total {customers.length} Items
+              Total {totalCount} Items
             </p>
             <p className="text-xs font-bold text-slate-400">
               현재 {pageStartItem} - {pageEndItem}건 표시 / {itemsPerPage}개씩 보기
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(1)}
-              className="h-11 rounded-xl border-2 border-slate-100 bg-white px-4 text-xs font-black text-slate-500 disabled:opacity-20 hover:bg-slate-50 transition-all"
-              type="button"
-            >
-              처음
-            </button>
-
-            <button
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              className="p-3 rounded-xl border-2 border-slate-100 bg-white disabled:opacity-20 hover:bg-slate-50 transition-all"
-              type="button"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-
-            <div className="px-6 py-3 rounded-xl bg-[#1e232d] text-sm font-black text-white shadow-lg">
-              {currentPage} / {totalPages}
-            </div>
-
-            <button
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              className="p-3 rounded-xl border-2 border-slate-100 bg-white disabled:opacity-20 hover:bg-slate-50 transition-all"
-              type="button"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-
-            <button
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(totalPages)}
-              className="h-11 rounded-xl border-2 border-slate-100 bg-white px-4 text-xs font-black text-slate-500 disabled:opacity-20 hover:bg-slate-50 transition-all"
-              type="button"
-            >
-              마지막
-            </button>
-          </div>
+          <PaginationControls />
         </div>
       </section>
 
@@ -1137,41 +1290,51 @@ export default function SalesManagementPage() {
             </div>
 
             <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
-              {salesRankings.map((r, i) => (
-                <div
-                  key={r.id}
-                  className={`flex items-center justify-between p-6 rounded-[24px] border-2 transition-all ${
-                    r.id === currentUser?.id
-                      ? "bg-rose-50 border-rose-200 ring-1 ring-rose-100"
-                      : "bg-slate-50 border-slate-100"
-                  }`}
-                >
-                  <div className="flex items-center gap-5">
-                    <div className={`h-12 w-12 rounded-2xl flex items-center justify-center text-lg font-black ${i === 0 ? "bg-amber-100 text-amber-600" : "bg-white text-slate-400"}`}>
-                      {i + 1}
+              {isRankLoading ? (
+                [1, 2, 3].map(i => (
+                  <div key={i} className="h-24 animate-pulse rounded-[24px] bg-slate-50" />
+                ))
+              ) : salesRankings.length === 0 ? (
+                <div className="flex h-32 items-center justify-center rounded-[24px] bg-slate-50 text-sm font-black text-slate-400">
+                  집계할 영업 실적이 없습니다.
+                </div>
+              ) : (
+                salesRankings.map((r, i) => (
+                  <div
+                    key={r.id}
+                    className={`flex items-center justify-between p-6 rounded-[24px] border-2 transition-all ${
+                      r.id === currentUser?.id
+                        ? "bg-rose-50 border-rose-200 ring-1 ring-rose-100"
+                        : "bg-slate-50 border-slate-100"
+                    }`}
+                  >
+                    <div className="flex items-center gap-5">
+                      <div className={`h-12 w-12 rounded-2xl flex items-center justify-center text-lg font-black ${i === 0 ? "bg-amber-100 text-amber-600" : "bg-white text-slate-400"}`}>
+                        {i + 1}
+                      </div>
+                      <div>
+                        <div className="font-black text-slate-900 text-lg">
+                          {r.name}
+                          {r.id === currentUser?.id && (
+                            <span className="ml-2 px-2 py-0.5 bg-rose-600 text-white text-[9px] rounded-md uppercase">
+                              You
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-black text-slate-900 text-lg">
-                        {r.name}
-                        {r.id === currentUser?.id && (
-                          <span className="ml-2 px-2 py-0.5 bg-rose-600 text-white text-[9px] rounded-md uppercase">
-                            You
-                          </span>
-                        )}
+
+                    <div className="text-right">
+                      <div className="text-xl font-black text-slate-900">
+                        ₩{r.total.toLocaleString()}
+                      </div>
+                      <div className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">
+                        Commission
                       </div>
                     </div>
                   </div>
-
-                  <div className="text-right">
-                    <div className="text-xl font-black text-slate-900">
-                      ₩{r.total.toLocaleString()}
-                    </div>
-                    <div className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">
-                      Commission
-                    </div>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
 
             <button

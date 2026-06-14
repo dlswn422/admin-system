@@ -75,6 +75,26 @@ type FilterState = {
   sales_status: string;
 };
 
+const formatLocalDate = (date: Date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const getTodayDate = () => formatLocalDate(new Date());
+
+const getMonthStartDate = () => {
+  const now = new Date();
+  return formatLocalDate(new Date(now.getFullYear(), now.getMonth(), 1));
+};
+
+const getMonthEndDate = () => {
+  const now = new Date();
+  return formatLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+};
+
 export default function SalesManagementPage() {
   const [currentUser, setCurrentUser] = useState<UserInfo | null>(null);
 
@@ -89,8 +109,8 @@ export default function SalesManagementPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [filters, setFilters] = useState<FilterState>({
-    date_from: "",
-    date_to: "",
+    date_from: getMonthStartDate(),
+    date_to: getMonthEndDate(),
     search: "",
     sales_id: "all",
     sales_status: "all",
@@ -111,7 +131,7 @@ export default function SalesManagementPage() {
   const isAdmin = currentRole === "관리자";
   const isCreateMode = !selectedCustomer;
 
-  const today = () => new Date().toISOString().split("T")[0];
+  const today = getTodayDate;
 
   const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
@@ -316,8 +336,8 @@ export default function SalesManagementPage() {
   const resetFilters = useCallback(() => {
     setCurrentPage(1);
     setFilters({
-      date_from: "",
-      date_to: "",
+      date_from: getMonthStartDate(),
+      date_to: getMonthEndDate(),
       search: "",
       sales_id: isAdmin ? "all" : String(currentUser?.id || ""),
       sales_status: "all",

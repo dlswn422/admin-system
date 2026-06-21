@@ -184,7 +184,15 @@ export default function SalesManagementPage() {
     }
 
     return params;
-  }, [currentPage, itemsPerPage, filters, debouncedSearch]);
+  }, [
+    currentPage,
+    itemsPerPage,
+    filters.date_from,
+    filters.date_to,
+    filters.sales_id,
+    filters.sales_status,
+    debouncedSearch,
+  ]);
 
   const fetchBaseData = useCallback(async () => {
     try {
@@ -423,7 +431,7 @@ export default function SalesManagementPage() {
       consult_status: "",
       consult_memo: "",
       sales_id: isAdmin ? "" : String(currentUser.id),
-      sales_date: "",
+      sales_date: today(),
       sales_status: "",
       sales_memo: "",
       sales_commission: 0,
